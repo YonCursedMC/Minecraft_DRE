@@ -22,27 +22,27 @@
 +
 +		bipedHead = new ModelRenderer(this);
 +		bipedHead.setRotationPoint(0.0F, -44.0F, 0.0F);
-+		this.bipedHead.setTextureOffset(32, 0).addBox(-4.0F, -16.0F, -4.0F, 8, 16, 8, 0.0F);
++		bipedHead.cubeList.add(new ModelBox(bipedHead, 32, 0, -4.0F, -16.0F, -4.0F, 8, 16, 8, 0.0F));
 +
 +		bipedBody = new ModelRenderer(this);
 +		bipedBody.setRotationPoint(0.0F, -26.0F, 0.0F);
-+		this.bipedBody.setTextureOffset(16, 24).addBox(-4.0F, -18.0F, -2.0F, 8, 36, 4, 0.0F);
++		bipedBody.cubeList.add(new ModelBox(bipedBody, 16, 24, -4.0F, -18.0F, -2.0F, 8, 36, 4, 0.0F));
 +
 +		bipedRightArm = new ModelRenderer(this);
 +		bipedRightArm.setRotationPoint(-6.0F, -42.0F, 0.0F);
-+		this.bipedRightArm.setTextureOffset(0, 36).addBox(-2.0F, -2.0F, -2.0F, 4, 24, 4, 0.0F);
++		bipedRightArm.cubeList.add(new ModelBox(bipedRightArm, 0, 36, -2.0F, -2.0F, -2.0F, 4, 24, 4, 0.0F));
 +
 +		bipedLeftArm = new ModelRenderer(this);
 +		bipedLeftArm.setRotationPoint(6.0F, -42.0F, 0.0F);
-+		this.bipedLeftArm.setTextureOffset(0, 36).addBox(-2.0F, -2.0F, -2.0F, 4, 24, 4, 0.0F);
++		bipedLeftArm.cubeList.add(new ModelBox(bipedLeftArm, 0, 36, -2.0F, -2.0F, -2.0F, 4, 24, 4, 0.0F));
 +
 +		bipedRightLeg = new ModelRenderer(this);
 +		bipedRightLeg.setRotationPoint(-2.0F, -8.0F, 0.0F);
-+		this.bipedRightLeg.setTextureOffset(0, 0).addBox(-2.0F, 0.0F, -2.0F, 4, 32, 4, 0.0F);
++		bipedRightLeg.cubeList.add(new ModelBox(bipedRightLeg, 0, 0, -2.0F, 0.0F, -2.0F, 4, 32, 4, 0.0F));
 +
 +		bipedLeftLeg = new ModelRenderer(this);
 +		bipedLeftLeg.setRotationPoint(2.0F, -8.0F, 0.0F);
-+		this.bipedLeftLeg.setTextureOffset(0, 0).addBox(-2.0F, 0.0F, -2.0F, 4, 32, 4, 0.0F);
++		bipedLeftLeg.cubeList.add(new ModelBox(bipedLeftLeg, 0, 0, -2.0F, 0.0F, -2.0F, 4, 32, 4, 0.0F));
 +	}
 +
 +	/**

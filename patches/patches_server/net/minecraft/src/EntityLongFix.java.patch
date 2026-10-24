@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/net/minecraft/src/EntityLongFix.java
-@@ -1,0 +1,144 @@
+@@ -1,0 +1,145 @@
 +package net.minecraft.src;
 +
 +public class EntityLongFix extends EntityMob {
@@ -131,6 +131,7 @@
 +	protected void onAttackPlayerMP(EntityPlayerMP player) {
 +		super.onAttackPlayerMP(player);
 +		ClientEvents.event7(player);
++		this.setDead();
 +	}
 +
 +	public void onUpdate() {

@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/net/minecraft/src/EntityLongFix.java
-@@ -1,0 +1,146 @@
+@@ -1,0 +1,147 @@
 +package net.minecraft.src;
 +
 +import net.minecraft.client.Minecraft;
@@ -133,6 +133,7 @@
 +	protected void onAttackPlayerMP(EntityPlayerMP player) {
 +		super.onAttackPlayerMP(player);
 +		ClientEvents.event7(player);
++		this.setDead();
 +	}
 +
 +	public void onUpdate() {

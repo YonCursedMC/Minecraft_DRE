@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/net/minecraft/src/EntityLongFixS.java
-@@ -1,0 +1,134 @@
+@@ -1,0 +1,135 @@
 +package net.minecraft.src;
 +
 +public class EntityLongFixS extends EntityLongFix {
@@ -120,6 +120,7 @@
 +		super.onAttackPlayerMP(player);
 +		if(this.rand.nextInt(50) == 0) {
 +			ClientEvents.event7(player);
++			this.setDead();
 +		}
 +	}
 +

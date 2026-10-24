@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/net/minecraft/src/EntityLongLeggedSteveS.java
-@@ -1,0 +1,125 @@
+@@ -1,0 +1,126 @@
 +package net.minecraft.src;
 +
 +public class EntityLongLeggedSteveS extends EntityLongLeggedSteve {
@@ -119,6 +119,7 @@
 +		super.onAttackPlayerMP(player);
 +		if(this.rand.nextInt(50) == 0) {
 +			ClientEvents.event6(player);
++			this.setDead();
 +		}
 +	}
 +
