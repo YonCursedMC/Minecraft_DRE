@@ -1,0 +1,318 @@
+--- /dev/null
++++ b/net/minecraft/src/MovingImageModal.java
+@@ -1,0 +1,315 @@
++package net.minecraft.src;
++
++import java.awt.Color;
++import java.awt.Dimension;
++import java.awt.Graphics;
++import java.awt.Graphics2D;
++import java.awt.RenderingHints;
++import java.awt.Toolkit;
++import java.awt.event.ActionEvent;
++import java.awt.event.ActionListener;
++import java.awt.image.BufferedImage;
++import java.io.File;
++import java.io.InputStream;
++import java.util.ArrayList;
++import java.util.Iterator;
++import java.util.List;
++import java.util.Random;
++import javax.imageio.ImageIO;
++import javax.swing.JDialog;
++import javax.swing.JPanel;
++import javax.swing.SwingUtilities;
++import javax.swing.Timer;
++import javax.swing.WindowConstants;
++
++/**
++ * Spawns multiple always-on-top modal-style windows displaying an image,
++ * moves them around the screen, and automatically closes them after the specified seconds.
++ */
++public class MovingImageModal {
++	private static final List activeBatches = new ArrayList();
++
++	/**
++	 * Display [count] moving image windows for [seconds] seconds.
++	 *
++	 * @param imagePath Resource path (e.g. "/mob/char.png" or "/images/test.png") or file path
++	 * @param count     Number of windows to spawn
++	 * @param seconds   Duration in seconds before auto-closing
++	 */
++	public static void show(String imagePath, int count, double seconds) {
++		show(imagePath, "WARNING", count, seconds, 0, 0, 12.0D);
++	}
++
++	/**
++	 * Display [count] moving image windows with a custom window title for [seconds] seconds.
++	 */
++	public static void show(String imagePath, String title, int count, double seconds) {
++		show(imagePath, title, count, seconds, 0, 0, 12.0D);
++	}
++
++	/**
++	 * Display [count] moving image windows with custom size (width, height) for [seconds] seconds.
++	 */
++	public static void show(String imagePath, String title, int count, double seconds, int width, int height) {
++		show(imagePath, title, count, seconds, width, height, 12.0D);
++	}
++
++	/**
++	 * Full overload with custom window size and movement speed.
++	 *
++	 * @param imagePath Resource path (e.g. "/mob/char.png") or file path
++	 * @param title     Window title bar text
++	 * @param count     Number of windows to spawn
++	 * @param seconds   Duration in seconds before auto-closing
++	 * @param width     Window content width (0 = auto-size from image)
++	 * @param height    Window content height (0 = auto-size from image)
++	 * @param speed     Movement speed in pixels per frame (default: 12.0D)
++	 */
++	public static void show(
++		final String imagePath,
++		final String title,
++		final int count,
++		final double seconds,
++		final int width,
++		final int height,
++		final double speed
++	) {
++		if(count <= 0 || seconds <= 0.0D) {
++			return;
++		}
++
++		final BufferedImage img = loadImage(imagePath);
++		if(img == null) {
++			System.err.println("[MovingImageModal] Image not found: " + imagePath);
++			return;
++		}
++
++		SwingUtilities.invokeLater(new Runnable() {
++			public void run() {
++				ModalBatch batch = new ModalBatch(img, title, count, seconds, width, height, speed);
++				synchronized(activeBatches) {
++					activeBatches.add(batch);
++				}
++				batch.start();
++			}
++		});
++	}
++
++	/**
++	 * Immediately close all active moving image windows.
++	 */
++	public static void closeAll() {
++		SwingUtilities.invokeLater(new Runnable() {
++			public void run() {
++				synchronized(activeBatches) {
++					Iterator it = activeBatches.iterator();
++					while(it.hasNext()) {
++						ModalBatch batch = (ModalBatch)it.next();
++						it.remove();
++						batch.disposeAll();
++					}
++				}
++			}
++		});
++	}
++
++	private static BufferedImage loadImage(String path) {
++		if(path == null || path.isEmpty()) {
++			return null;
++		}
++		try {
++			String normalized = path.startsWith("/") ? path : "/" + path;
++			InputStream in = MovingImageModal.class.getResourceAsStream(normalized);
++			if(in != null) {
++				try {
++					return ImageIO.read(in);
++				} finally {
++					in.close();
++				}
++			}
++			File file = new File(path);
++			if(file.exists()) {
++				return ImageIO.read(file);
++			}
++		} catch (Throwable e) {
++			e.printStackTrace();
++		}
++		return null;
++	}
++
++	private static class MovingWindow {
++		final JDialog dialog;
++		double x;
++		double y;
++		double vx;
++		double vy;
++		final int winW;
++		final int winH;
++
++		MovingWindow(JDialog dialog, double x, double y, double vx, double vy, int winW, int winH) {
++			this.dialog = dialog;
++			this.x = x;
++			this.y = y;
++			this.vx = vx;
++			this.vy = vy;
++			this.winW = winW;
++			this.winH = winH;
++		}
++	}
++
++	private static class ImagePanel extends JPanel {
++		private final BufferedImage image;
++
++		ImagePanel(BufferedImage image, int w, int h) {
++			this.image = image;
++			setPreferredSize(new Dimension(w, h));
++			setBackground(Color.BLACK);
++		}
++
++		protected void paintComponent(Graphics g) {
++			super.paintComponent(g);
++			if(this.image != null) {
++				Graphics2D g2 = (Graphics2D)g;
++				g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
++				g2.drawImage(this.image, 0, 0, getWidth(), getHeight(), null);
++			}
++		}
++	}
++
++	private static class ModalBatch implements ActionListener {
++		private final BufferedImage image;
++		private final String title;
++		private final int count;
++		private final long durationMs;
++		private final int targetW;
++		private final int targetH;
++		private final double speed;
++		private final List windows = new ArrayList();
++		private final Random rand = new Random();
++		private final int screenW;
++		private final int screenH;
++		private Timer timer;
++		private long startTimeMs;
++
++		ModalBatch(BufferedImage image, String title, int count, double seconds, int width, int height, double speed) {
++			this.image = image;
++			this.title = title != null ? title : "";
++			this.count = count;
++			this.durationMs = Math.max(100L, (long)(seconds * 1000.0D));
++			this.speed = speed > 0.0D ? speed : 12.0D;
++
++			Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
++			this.screenW = screen.width;
++			this.screenH = screen.height;
++
++			int w = width > 0 ? width : image.getWidth();
++			int h = height > 0 ? height : image.getHeight();
++			// If image is tiny (e.g. 16x16 or 64x32 texture), scale up to a visible window size
++			if(width <= 0 && height <= 0 && (w < 120 || h < 120)) {
++				int scale = Math.max(2, 240 / Math.max(1, Math.max(w, h)));
++				w *= scale;
++				h *= scale;
++			}
++			this.targetW = Math.max(80, w);
++			this.targetH = Math.max(80, h);
++		}
++
++		void start() {
++			this.startTimeMs = System.currentTimeMillis();
++
++			for(int i = 0; i < this.count; ++i) {
++				JDialog dialog = new JDialog();
++				dialog.setTitle(this.title);
++				dialog.setAlwaysOnTop(true);
++				dialog.setFocusableWindowState(false);
++				dialog.setResizable(false);
++				dialog.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
++				dialog.setContentPane(new ImagePanel(this.image, this.targetW, this.targetH));
++				dialog.pack();
++
++				int winW = dialog.getWidth();
++				int winH = dialog.getHeight();
++				int maxX = Math.max(1, this.screenW - winW);
++				int maxY = Math.max(1, this.screenH - winH);
++
++				double startX = this.rand.nextInt(maxX);
++				double startY = this.rand.nextInt(maxY);
++
++				double angle = this.rand.nextDouble() * Math.PI * 2.0D;
++				double spd = this.speed * (0.75D + this.rand.nextDouble() * 0.6D);
++				double vx = Math.cos(angle) * spd;
++				double vy = Math.sin(angle) * spd;
++				if(Math.abs(vx) < 2.0D) {
++					vx = vx < 0.0D ? -3.0D : 3.0D;
++				}
++				if(Math.abs(vy) < 2.0D) {
++					vy = vy < 0.0D ? -3.0D : 3.0D;
++				}
++
++				dialog.setLocation((int)startX, (int)startY);
++				dialog.setVisible(true);
++
++				this.windows.add(new MovingWindow(dialog, startX, startY, vx, vy, winW, winH));
++			}
++
++			this.timer = new Timer(16, this);
++			this.timer.start();
++		}
++
++		public void actionPerformed(ActionEvent e) {
++			long elapsed = System.currentTimeMillis() - this.startTimeMs;
++			if(elapsed >= this.durationMs) {
++				disposeAll();
++				synchronized(activeBatches) {
++					activeBatches.remove(this);
++				}
++				return;
++			}
++
++			for(int i = 0; i < this.windows.size(); ++i) {
++				MovingWindow mw = (MovingWindow)this.windows.get(i);
++				if(!mw.dialog.isDisplayable()) {
++					continue;
++				}
++
++				mw.x += mw.vx;
++				mw.y += mw.vy;
++
++				int maxX = Math.max(0, this.screenW - mw.winW);
++				int maxY = Math.max(0, this.screenH - mw.winH);
++
++				if(mw.x <= 0.0D) {
++					mw.x = 0.0D;
++					mw.vx = Math.abs(mw.vx);
++				} else if(mw.x >= maxX) {
++					mw.x = maxX;
++					mw.vx = -Math.abs(mw.vx);
++				}
++
++				if(mw.y <= 0.0D) {
++					mw.y = 0.0D;
++					mw.vy = Math.abs(mw.vy);
++				} else if(mw.y >= maxY) {
++					mw.y = maxY;
++					mw.vy = -Math.abs(mw.vy);
++				}
++
++				mw.dialog.setLocation((int)mw.x, (int)mw.y);
++			}
++		}
++
++		void disposeAll() {
++			if(this.timer != null) {
++				this.timer.stop();
++			}
++			for(int i = 0; i < this.windows.size(); ++i) {
++				MovingWindow mw = (MovingWindow)this.windows.get(i);
++				try {
++					mw.dialog.dispose();
++				} catch (Throwable ignored) {
++				}
++			}
++			this.windows.clear();
++		}
++	}
++}

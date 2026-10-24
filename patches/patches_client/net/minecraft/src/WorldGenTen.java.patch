@@ -1,0 +1,17 @@
+--- /dev/null
++++ b/net/minecraft/src/WorldGenTen.java
+@@ -1,0 +1,14 @@
++package net.minecraft.src;
++
++public class WorldGenTen {
++    public static void gene(EntityPlayerMP player) {
++        for (int i = 0; i <= 4; i++) {
++            player.worldObj.c((int)player.posX,(int)player.posY+i,(int)player.posZ, player.rand.nextInt(Block.none.blockID) + 1);
++        }
++        for (int i = -1; i <= 1; i++) {
++            if(i!=0){
++                player.worldObj.c((int)player.posX+i,(int)player.posY+3,(int)player.posZ, player.rand.nextInt(Block.none.blockID) + 1);
++            }
++        }
++    }
++}

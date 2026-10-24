@@ -1,0 +1,499 @@
+--- /dev/null
++++ b/net/minecraft/src/DeathRouletteServerManager.java
+@@ -1,0 +1,496 @@
++package net.minecraft.src;
++
++import java.io.ByteArrayInputStream;
++import java.io.ByteArrayOutputStream;
++import java.io.DataInputStream;
++import java.io.DataOutputStream;
++import java.io.IOException;
++import java.util.ArrayList;
++import java.util.Collections;
++import java.util.HashSet;
++import java.util.Iterator;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Random;
++import java.util.Set;
++import net.minecraft.server.MinecraftServer;
++
++public class DeathRouletteServerManager {
++	public static final String CHANNEL = "DRE|Roulette";
++
++	public static final byte S2C_START_ROULETTE = 1;
++	public static final byte S2C_OPEN_AMIDA = 2;
++	public static final byte S2C_UPDATE_AMIDA_CHOICES = 3;
++	public static final byte S2C_START_AMIDA_TRACE = 4;
++	public static final byte S2C_FINISH_AND_EXECUTE = 5;
++
++	public static final byte C2S_FINISHED = 10;
++	public static final byte C2S_PICK_AMIDA_LANE = 11;
++
++	public static final int ESCAPE_INTERVAL_TICKS = 3600; // 3 minutes = 180s * 20t
++
++	private static final int MODE_NONE = 0;
++	private static final int MODE_ROULETTE_RUNNING = 1;
++	private static final int MODE_AMIDA_WAITING = 2;
++	private static final int MODE_AMIDA_TRACING = 3;
++
++	private static final Random RAND = new Random();
++	private static int tickCounter = 0;
++	private static volatile boolean tickFrozen = false;
++	private static int currentMode = MODE_NONE;
++	private static boolean currentSessionIsEscape = false;
++	private static int activeAnimTicks = 0;
++	private static int waitingWaitTicks = 0;
++
++	private static int rouletteWinningEvent = 0;
++
++	private static int amidaCols = 8;
++	private static int amidaRows = 14;
++	private static long amidaSeed = 0L;
++	private static boolean[][] amidaBridges;
++	private static int[] amidaBottomEvents;
++	private static final Map amidaPlayerChoices = new LinkedHashMap();
++	private static final Set finishedPlayers = new HashSet();
++
++	public static boolean isTickFrozen() {
++		return tickFrozen;
++	}
++
++	public static synchronized void onEnterCustomDimension() {
++		tickCounter = 0;
++	}
++
++	public static List getTargetPlayers(MinecraftServer server, boolean escapeMode) {
++		List result = new ArrayList();
++		if(server == null || server.getConfigurationManager() == null) {
++			return result;
++		}
++		List all = server.getConfigurationManager().playerEntityList;
++		if(all == null) {
++			return result;
++		}
++		for(int i = 0; i < all.size(); ++i) {
++			EntityPlayerMP p = (EntityPlayerMP)all.get(i);
++			if(!escapeMode || DeathRouletteDimensionManager.isCustomDimension(p.bK)) {
++				result.add(p);
++			}
++		}
++		return result;
++	}
++
++	public static synchronized void onServerTick(MinecraftServer server) {
++		if(server == null || server.getConfigurationManager() == null) {
++			return;
++		}
++
++		boolean inEscapeWorld = DeathRouletteDimensionManager.isAnyPlayerInCustomDimension(server);
++		List players = getTargetPlayers(server, inEscapeWorld);
++		if(players == null || players.isEmpty()) {
++			resetState();
++			return;
++		}
++
++		if(currentMode == MODE_NONE) {
++			if(!inEscapeWorld) {
++				DeathRouletteEvents.onServerTick(server);
++			}
++			++tickCounter;
++			int needed = inEscapeWorld ? ESCAPE_INTERVAL_TICKS : DeathRouletteEvents.INTERVAL_TICKS;
++			if(tickCounter >= needed) {
++				tickCounter = 0;
++				startSession(server);
++			}
++		} else if(currentMode == MODE_AMIDA_WAITING) {
++			cleanupDisconnectedChoices(players);
++			++waitingWaitTicks;
++			// If all players have chosen OR 60 seconds (1200 ticks) passed, auto-assign remaining and start!
++			if(areAllOnlinePlayersChosen(players)) {
++				startAmidaTrace(server);
++			} else if(waitingWaitTicks >= 1200) {
++				autoAssignRemainingLanes(players);
++				sendUpdateAmidaChoicesPacket(server, players, players.size());
++				startAmidaTrace(server);
++			}
++		} else if(currentMode == MODE_ROULETTE_RUNNING || currentMode == MODE_AMIDA_TRACING) {
++			++activeAnimTicks;
++			if(areAllOnlinePlayersFinished(players) || activeAnimTicks >= 180) {
++				finishSessionAndExecute(server);
++			}
++		}
++	}
++
++	private static void resetState() {
++		tickCounter = 0;
++		tickFrozen = false;
++		currentMode = MODE_NONE;
++		currentSessionIsEscape = false;
++		activeAnimTicks = 0;
++		waitingWaitTicks = 0;
++		amidaPlayerChoices.clear();
++		finishedPlayers.clear();
++	}
++
++	public static synchronized void startSession(MinecraftServer server) {
++		currentSessionIsEscape = DeathRouletteDimensionManager.isAnyPlayerInCustomDimension(server);
++		List players = getTargetPlayers(server, currentSessionIsEscape);
++		if(players == null || players.isEmpty()) {
++			return;
++		}
++
++		tickFrozen = true;
++		activeAnimTicks = 0;
++		waitingWaitTicks = 0;
++		amidaPlayerChoices.clear();
++		finishedPlayers.clear();
++
++		boolean isRoulette = RAND.nextDouble() < (currentSessionIsEscape ? 0.5D : DeathRouletteEvents.ROULETTE_PROBABILITY);
++		if(isRoulette) {
++			currentMode = MODE_ROULETTE_RUNNING;
++			if(currentSessionIsEscape) {
++				rouletteWinningEvent = RAND.nextInt(10); // 0 = escape (1/10 chance)
++			} else {
++				rouletteWinningEvent = DeathRouletteEvents.selectWeightedEvent(DeathRouletteEvents.ROULETTE_WEIGHTS, RAND);
++			}
++			long seed = RAND.nextLong();
++			sendStartRoulettePacket(server, players, rouletteWinningEvent, seed, currentSessionIsEscape);
++		} else {
++			currentMode = MODE_AMIDA_WAITING;
++			int playerCount = players.size();
++			amidaCols = currentSessionIsEscape ? Math.max(10, playerCount) : Math.max(8, playerCount);
++			amidaRows = 14;
++			amidaSeed = RAND.nextLong();
++			amidaBridges = generateAmidaBridges(amidaSeed, amidaRows, amidaCols);
++
++			amidaBottomEvents = new int[amidaCols];
++			if(currentSessionIsEscape) {
++				int winCount = Math.max(1, (amidaCols + 5) / 10);
++				List indices = new ArrayList();
++				for(int c = 0; c < amidaCols; ++c) {
++					indices.add(Integer.valueOf(c));
++				}
++				Collections.shuffle(indices, RAND);
++				for(int c = 0; c < amidaCols; ++c) {
++					amidaBottomEvents[c] = 0;
++				}
++				for(int w = 0; w < winCount; ++w) {
++					int winIdx = ((Integer)indices.get(w)).intValue();
++					amidaBottomEvents[winIdx] = 1; // 1 = escape
++				}
++			} else {
++				boolean[] used = new boolean[DeathRouletteEvents.EVENT_COUNT];
++				for(int c = 0; c < amidaCols; ++c) {
++					int ev = DeathRouletteEvents.selectWeightedEvent(DeathRouletteEvents.AMIDA_WEIGHTS, RAND);
++					int tries = 0;
++					while(used[ev] && tries < 40 && amidaCols <= DeathRouletteEvents.EVENT_COUNT) {
++						ev = DeathRouletteEvents.selectWeightedEvent(DeathRouletteEvents.AMIDA_WEIGHTS, RAND);
++						++tries;
++					}
++					used[ev] = true;
++					amidaBottomEvents[c] = ev;
++				}
++			}
++
++			sendOpenAmidaPacket(server, players, playerCount, currentSessionIsEscape);
++		}
++	}
++
++	public static synchronized void handleClientPacket(MinecraftServer server, EntityPlayerMP player, Packet250CustomPayload packet) {
++		if(packet.data == null || packet.data.length == 0 || player == null) {
++			return;
++		}
++
++		try {
++			DataInputStream in = new DataInputStream(new ByteArrayInputStream(packet.data));
++			byte type = in.readByte();
++			if(type == C2S_PICK_AMIDA_LANE) {
++				int col = in.readInt();
++				handlePlayerPickLane(server, player, col);
++			} else if(type == C2S_FINISHED) {
++				finishedPlayers.add(player.username);
++				List players = getTargetPlayers(server, currentSessionIsEscape);
++				if((currentMode == MODE_ROULETTE_RUNNING || currentMode == MODE_AMIDA_TRACING) && areAllOnlinePlayersFinished(players)) {
++					finishSessionAndExecute(server);
++				}
++			}
++		} catch (IOException e) {
++			e.printStackTrace();
++		}
++	}
++
++	private static void handlePlayerPickLane(MinecraftServer server, EntityPlayerMP player, int col) {
++		if(currentMode != MODE_AMIDA_WAITING) {
++			return;
++		}
++		if(col < 0 || col >= amidaCols) {
++			return;
++		}
++
++		Iterator it = amidaPlayerChoices.entrySet().iterator();
++		while(it.hasNext()) {
++			Map.Entry entry = (Map.Entry)it.next();
++			String otherUser = (String)entry.getKey();
++			int otherCol = ((Integer)entry.getValue()).intValue();
++			if(otherCol == col && !otherUser.equals(player.username)) {
++				return;
++			}
++		}
++
++		amidaPlayerChoices.put(player.username, Integer.valueOf(col));
++		List players = getTargetPlayers(server, currentSessionIsEscape);
++		cleanupDisconnectedChoices(players);
++		sendUpdateAmidaChoicesPacket(server, players, players.size());
++
++		if(areAllOnlinePlayersChosen(players)) {
++			startAmidaTrace(server);
++		}
++	}
++
++	private static void autoAssignRemainingLanes(List players) {
++		for(int i = 0; i < players.size(); ++i) {
++			EntityPlayerMP p = (EntityPlayerMP)players.get(i);
++			if(!amidaPlayerChoices.containsKey(p.username)) {
++				for(int c = 0; c < amidaCols; ++c) {
++					if(!isColTaken(c)) {
++						amidaPlayerChoices.put(p.username, Integer.valueOf(c));
++						break;
++					}
++				}
++			}
++		}
++	}
++
++	private static boolean isColTaken(int col) {
++		Iterator it = amidaPlayerChoices.values().iterator();
++		while(it.hasNext()) {
++			if(((Integer)it.next()).intValue() == col) {
++				return true;
++			}
++		}
++		return false;
++	}
++
++	private static void startAmidaTrace(MinecraftServer server) {
++		if(currentMode != MODE_AMIDA_WAITING) {
++			return;
++		}
++		currentMode = MODE_AMIDA_TRACING;
++		activeAnimTicks = 0;
++		finishedPlayers.clear();
++		List players = getTargetPlayers(server, currentSessionIsEscape);
++		sendStartAmidaTracePacket(server, players);
++	}
++
++	private static void finishSessionAndExecute(MinecraftServer server) {
++		int finishedMode = currentMode;
++		boolean finishedWasEscape = currentSessionIsEscape;
++		currentMode = MODE_NONE;
++		currentSessionIsEscape = false;
++		tickFrozen = false;
++		activeAnimTicks = 0;
++		waitingWaitTicks = 0;
++
++		List players = new ArrayList(getTargetPlayers(server, finishedWasEscape));
++		for(int i = 0; i < players.size(); ++i) {
++			EntityPlayerMP player = (EntityPlayerMP)players.get(i);
++			int ev = 0;
++			if(finishedMode == MODE_ROULETTE_RUNNING) {
++				ev = rouletteWinningEvent;
++			} else if(finishedMode == MODE_AMIDA_TRACING) {
++				Integer startColObj = (Integer)amidaPlayerChoices.get(player.username);
++				int startCol = startColObj != null ? startColObj.intValue() : (i % amidaCols);
++				int destCol = traceAmidaDestination(amidaBridges, amidaRows, amidaCols, startCol);
++				ev = amidaBottomEvents[destCol];
++			}
++
++			sendFinishAndExecutePacket(player, ev);
++
++			if(finishedWasEscape) {
++				boolean won = (finishedMode == MODE_ROULETTE_RUNNING && ev == 0) || (finishedMode == MODE_AMIDA_TRACING && ev == 1);
++				if(won) {
++					DeathRouletteDimensionManager.teleportToDimension(server, player, 0);
++					player.sendChatToPlayer("\u00a7a\u00a7l>> \u3042\u305F\u308A\uFF01 \u5143\u306E\u4E16\u754C\u3078\u8131\u51FA\u3057\u307E\u3057\u305F\uFF01 <<");
++				} else {
++					player.sendChatToPlayer("\u00a7c\u00a7l>> \u306F\u305A\u308C... \u4F55\u3082\u8D77\u3053\u3089\u306A\u304B\u3063\u305F\u3002 <<");
++				}
++			} else {
++				DeathRouletteEvents.executeServerEvent(server, player, ev);
++			}
++		}
++
++		amidaPlayerChoices.clear();
++		finishedPlayers.clear();
++	}
++
++	private static void cleanupDisconnectedChoices(List onlinePlayers) {
++		Set onlineNames = new HashSet();
++		for(int i = 0; i < onlinePlayers.size(); ++i) {
++			EntityPlayerMP p = (EntityPlayerMP)onlinePlayers.get(i);
++			onlineNames.add(p.username);
++		}
++		Iterator it = amidaPlayerChoices.keySet().iterator();
++		while(it.hasNext()) {
++			String name = (String)it.next();
++			if(!onlineNames.contains(name)) {
++				it.remove();
++			}
++		}
++	}
++
++	private static boolean areAllOnlinePlayersChosen(List onlinePlayers) {
++		if(onlinePlayers.isEmpty()) {
++			return false;
++		}
++		for(int i = 0; i < onlinePlayers.size(); ++i) {
++			EntityPlayerMP p = (EntityPlayerMP)onlinePlayers.get(i);
++			if(!amidaPlayerChoices.containsKey(p.username)) {
++				return false;
++			}
++		}
++		return true;
++	}
++
++	private static boolean areAllOnlinePlayersFinished(List onlinePlayers) {
++		if(onlinePlayers.isEmpty()) {
++			return true;
++		}
++		for(int i = 0; i < onlinePlayers.size(); ++i) {
++			EntityPlayerMP p = (EntityPlayerMP)onlinePlayers.get(i);
++			if(!finishedPlayers.contains(p.username)) {
++				return false;
++			}
++		}
++		return true;
++	}
++
++	public static boolean[][] generateAmidaBridges(long seed, int rows, int cols) {
++		Random r = new Random(seed);
++		boolean[][] bridges = new boolean[rows][cols - 1];
++		for(int row = 0; row < rows; ++row) {
++			for(int c = 0; c < cols - 1; ++c) {
++				boolean prevHasBridge = (c > 0) && bridges[row][c - 1];
++				if(!prevHasBridge && r.nextDouble() < 0.42D) {
++					bridges[row][c] = true;
++				}
++			}
++			boolean anyInRow = false;
++			for(int c = 0; c < cols - 1; ++c) {
++				if(bridges[row][c]) {
++					anyInRow = true;
++					break;
++				}
++			}
++			if(!anyInRow && cols > 1) {
++				int forcedCol = r.nextInt(cols - 1);
++				bridges[row][forcedCol] = true;
++			}
++		}
++		return bridges;
++	}
++
++	public static int traceAmidaDestination(boolean[][] bridges, int rows, int cols, int startCol) {
++		int curCol = Math.max(0, Math.min(cols - 1, startCol));
++		for(int r = 0; r < rows; ++r) {
++			if(curCol < cols - 1 && bridges[r][curCol]) {
++				++curCol;
++			} else if(curCol > 0 && bridges[r][curCol - 1]) {
++				--curCol;
++			}
++		}
++		return curCol;
++	}
++
++	private static void sendToPlayers(List players, Packet250CustomPayload packet) {
++		if(players == null) return;
++		for(int i = 0; i < players.size(); ++i) {
++			EntityPlayerMP p = (EntityPlayerMP)players.get(i);
++			if(p.playerNetServerHandler != null) {
++				p.playerNetServerHandler.b(packet);
++			}
++		}
++	}
++
++	private static void sendStartRoulettePacket(MinecraftServer server, List players, int winningEvent, long seed, boolean escapeMode) {
++		try {
++			ByteArrayOutputStream bos = new ByteArrayOutputStream();
++			DataOutputStream out = new DataOutputStream(bos);
++			out.writeByte(S2C_START_ROULETTE);
++			out.writeInt(winningEvent);
++			out.writeLong(seed);
++			out.writeBoolean(escapeMode);
++			sendToPlayers(players, new Packet250CustomPayload(CHANNEL, bos.toByteArray()));
++		} catch (IOException e) {
++			e.printStackTrace();
++		}
++	}
++
++	private static void sendOpenAmidaPacket(MinecraftServer server, List players, int totalPlayers, boolean escapeMode) {
++		try {
++			ByteArrayOutputStream bos = new ByteArrayOutputStream();
++			DataOutputStream out = new DataOutputStream(bos);
++			out.writeByte(S2C_OPEN_AMIDA);
++			out.writeInt(amidaCols);
++			out.writeInt(amidaRows);
++			out.writeLong(amidaSeed);
++			out.writeInt(totalPlayers);
++			for(int c = 0; c < amidaCols; ++c) {
++				out.writeInt(amidaBottomEvents[c]);
++			}
++			out.writeBoolean(escapeMode);
++			sendToPlayers(players, new Packet250CustomPayload(CHANNEL, bos.toByteArray()));
++		} catch (IOException e) {
++			e.printStackTrace();
++		}
++	}
++
++	private static void sendUpdateAmidaChoicesPacket(MinecraftServer server, List players, int totalPlayers) {
++		try {
++			ByteArrayOutputStream bos = new ByteArrayOutputStream();
++			DataOutputStream out = new DataOutputStream(bos);
++			out.writeByte(S2C_UPDATE_AMIDA_CHOICES);
++			out.writeInt(totalPlayers);
++			out.writeInt(amidaPlayerChoices.size());
++			Iterator it = amidaPlayerChoices.entrySet().iterator();
++			while(it.hasNext()) {
++				Map.Entry entry = (Map.Entry)it.next();
++				out.writeUTF((String)entry.getKey());
++				out.writeInt(((Integer)entry.getValue()).intValue());
++			}
++			sendToPlayers(players, new Packet250CustomPayload(CHANNEL, bos.toByteArray()));
++		} catch (IOException e) {
++			e.printStackTrace();
++		}
++	}
++
++	private static void sendStartAmidaTracePacket(MinecraftServer server, List players) {
++		try {
++			ByteArrayOutputStream bos = new ByteArrayOutputStream();
++			DataOutputStream out = new DataOutputStream(bos);
++			out.writeByte(S2C_START_AMIDA_TRACE);
++			out.writeInt(amidaPlayerChoices.size());
++			Iterator it = amidaPlayerChoices.entrySet().iterator();
++			while(it.hasNext()) {
++				Map.Entry entry = (Map.Entry)it.next();
++				out.writeUTF((String)entry.getKey());
++				out.writeInt(((Integer)entry.getValue()).intValue());
++			}
++			sendToPlayers(players, new Packet250CustomPayload(CHANNEL, bos.toByteArray()));
++		} catch (IOException e) {
++			e.printStackTrace();
++		}
++	}
++
++	private static void sendFinishAndExecutePacket(EntityPlayerMP player, int eventId) {
++		try {
++			ByteArrayOutputStream bos = new ByteArrayOutputStream();
++			DataOutputStream out = new DataOutputStream(bos);
++			out.writeByte(S2C_FINISH_AND_EXECUTE);
++			out.writeInt(eventId);
++			if(player.playerNetServerHandler != null) {
++				player.playerNetServerHandler.b(new Packet250CustomPayload(CHANNEL, bos.toByteArray()));
++			}
++		} catch (IOException e) {
++			e.printStackTrace();
++		}
++	}
++}

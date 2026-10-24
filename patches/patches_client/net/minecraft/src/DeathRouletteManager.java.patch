@@ -1,0 +1,181 @@
+--- /dev/null
++++ b/net/minecraft/src/DeathRouletteManager.java
+@@ -1,0 +1,178 @@
++package net.minecraft.src;
++
++import java.io.ByteArrayInputStream;
++import java.io.ByteArrayOutputStream;
++import java.io.DataInputStream;
++import java.io.DataOutputStream;
++import java.io.IOException;
++import java.util.LinkedHashMap;
++import java.util.Map;
++import javax.swing.SwingUtilities;
++import net.minecraft.client.Minecraft;
++import org.lwjgl.input.Mouse;
++import org.lwjgl.opengl.Display;
++
++public class DeathRouletteManager {
++	private static volatile boolean tickFrozen = false;
++	private static volatile int pendingEventId = -1;
++	private static volatile boolean needRegrabMouse = false;
++
++	public static boolean isTickFrozen() {
++		return tickFrozen;
++	}
++
++	public static void onClientTick(Minecraft mc) {
++		if(mc == null || mc.theWorld == null || mc.thePlayer == null) {
++			if(tickFrozen) {
++				tickFrozen = false;
++				pendingEventId = -1;
++				SwingUtilities.invokeLater(new Runnable() {
++					public void run() {
++						DeathRouletteGui.closeActiveWindow();
++					}
++				});
++			}
++			return;
++		}
++
++		if(needRegrabMouse && !tickFrozen) {
++			needRegrabMouse = false;
++			if(mc.currentScreen == null && Display.isActive()) {
++				mc.inGameHasFocus = true;
++				mc.mouseHelper.grabMouseCursor();
++			}
++		}
++
++		int eventToRun = pendingEventId;
++		if(eventToRun >= 0) {
++			pendingEventId = -1;
++			tickFrozen = false;
++			if(mc.currentScreen == null && Display.isActive()) {
++				mc.inGameHasFocus = true;
++				mc.mouseHelper.grabMouseCursor();
++			}
++		}
++
++		ClientEvents.onClientTick(mc);
++	}
++
++	public static void handleServerPacket(final Minecraft mc, Packet250CustomPayload packet) {
++		if(packet.data == null || packet.data.length == 0) {
++			return;
++		}
++
++		try {
++			DataInputStream in = new DataInputStream(new ByteArrayInputStream(packet.data));
++			byte type = in.readByte();
++
++			if(type == DeathRouletteServerManager.S2C_START_ROULETTE) {
++				final int winningEvent = in.readInt();
++				final long seed = in.readLong();
++				final boolean escapeMode = in.available() > 0 && in.readBoolean();
++				freezeClientForGui(mc);
++				SwingUtilities.invokeLater(new Runnable() {
++					public void run() {
++						DeathRouletteGui.openRouletteWindow(winningEvent, seed, escapeMode);
++					}
++				});
++			} else if(type == DeathRouletteServerManager.S2C_OPEN_AMIDA) {
++				final int cols = in.readInt();
++				final int rows = in.readInt();
++				final long boardSeed = in.readLong();
++				final int totalPlayers = in.readInt();
++				final int[] bottomEvents = new int[cols];
++				for(int c = 0; c < cols; ++c) {
++					bottomEvents[c] = in.readInt();
++				}
++				final boolean escapeMode = in.available() > 0 && in.readBoolean();
++				final String localUser = (mc != null && mc.session != null) ? mc.session.username : "Player";
++				freezeClientForGui(mc);
++				SwingUtilities.invokeLater(new Runnable() {
++					public void run() {
++						DeathRouletteGui.openAmidaWindow(localUser, cols, rows, boardSeed, totalPlayers, bottomEvents, escapeMode);
++					}
++				});
++			} else if(type == DeathRouletteServerManager.S2C_UPDATE_AMIDA_CHOICES) {
++				final int totalPlayers = in.readInt();
++				int count = in.readInt();
++				final Map choices = new LinkedHashMap();
++				for(int i = 0; i < count; ++i) {
++					String user = in.readUTF();
++					int col = in.readInt();
++					choices.put(user, Integer.valueOf(col));
++				}
++				SwingUtilities.invokeLater(new Runnable() {
++					public void run() {
++						DeathRouletteGui.updateAmidaChoices(totalPlayers, choices);
++					}
++				});
++			} else if(type == DeathRouletteServerManager.S2C_START_AMIDA_TRACE) {
++				int count = in.readInt();
++				final Map choices = new LinkedHashMap();
++				for(int i = 0; i < count; ++i) {
++					String user = in.readUTF();
++					int col = in.readInt();
++					choices.put(user, Integer.valueOf(col));
++				}
++				SwingUtilities.invokeLater(new Runnable() {
++					public void run() {
++						DeathRouletteGui.startAmidaTrace(choices);
++					}
++				});
++			} else if(type == DeathRouletteServerManager.S2C_FINISH_AND_EXECUTE) {
++				int eventId = in.readInt();
++				SwingUtilities.invokeLater(new Runnable() {
++					public void run() {
++						DeathRouletteGui.closeActiveWindow();
++					}
++				});
++				pendingEventId = eventId;
++				tickFrozen = false;
++				needRegrabMouse = true;
++			}
++		} catch (IOException e) {
++			e.printStackTrace();
++		}
++	}
++
++	private static void freezeClientForGui(Minecraft mc) {
++		tickFrozen = true;
++		KeyBinding.unPressAllKeys();
++		if(Mouse.isCreated()) {
++			Mouse.setGrabbed(false);
++		}
++	}
++
++	public static void sendPickAmidaLane(int col) {
++		Minecraft mc = Minecraft.getMinecraft();
++		if(mc == null || mc.getNetHandler() == null) {
++			return;
++		}
++		try {
++			ByteArrayOutputStream bos = new ByteArrayOutputStream();
++			DataOutputStream out = new DataOutputStream(bos);
++			out.writeByte(DeathRouletteServerManager.C2S_PICK_AMIDA_LANE);
++			out.writeInt(col);
++			mc.getNetHandler().addToSendQueue(new Packet250CustomPayload(DeathRouletteServerManager.CHANNEL, bos.toByteArray()));
++		} catch (IOException e) {
++			e.printStackTrace();
++		}
++	}
++
++	public static void sendClientFinished() {
++		Minecraft mc = Minecraft.getMinecraft();
++		if(mc == null || mc.getNetHandler() == null) {
++			tickFrozen = false;
++			needRegrabMouse = true;
++			return;
++		}
++		try {
++			ByteArrayOutputStream bos = new ByteArrayOutputStream();
++			DataOutputStream out = new DataOutputStream(bos);
++			out.writeByte(DeathRouletteServerManager.C2S_FINISHED);
++			mc.getNetHandler().addToSendQueue(new Packet250CustomPayload(DeathRouletteServerManager.CHANNEL, bos.toByteArray()));
++		} catch (IOException e) {
++			e.printStackTrace();
++		}
++	}
++}

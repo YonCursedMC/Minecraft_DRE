@@ -1,0 +1,22 @@
+--- /dev/null
++++ b/net/minecraft/src/RenderLongFix.java
+@@ -1,0 +1,19 @@
++package net.minecraft.src;
++
++import org.lwjgl.opengl.GL11;
++
++public class RenderLongFix extends RenderLiving {
++	protected ModelLongFix modelBipedMain;
++	protected float field_77070_b;
++
++	public RenderLongFix(ModelLongFix modelBiped1, float f2) {
++		this(modelBiped1, f2, 1.0F);
++		this.modelBipedMain = modelBiped1;
++	}
++
++	public RenderLongFix(ModelLongFix modelBiped1, float f2, float f3) {
++		super(modelBiped1, f2);
++		this.modelBipedMain = modelBiped1;
++		this.field_77070_b = f3;
++	}
++}

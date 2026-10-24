@@ -1,0 +1,11 @@
+--- a/net/minecraft/src/TexturePackList.java
++++ b/net/minecraft/src/TexturePackList.java
+@@ -70,7 +70,7 @@
+ 		HashMap hashMap3 = new HashMap();
+ 		GuiProgress guiProgress4 = new GuiProgress();
+ 		hashMap3.put("X-Minecraft-Username", this.mc.session.username);
+-		hashMap3.put("X-Minecraft-Version", "1.3.2");
++		hashMap3.put("X-Minecraft-Version", "DRE");
+ 		hashMap3.put("X-Minecraft-Supported-Resolutions", "16");
+ 		this.isDownloading = true;
+ 		this.mc.displayGuiScreen(guiProgress4);

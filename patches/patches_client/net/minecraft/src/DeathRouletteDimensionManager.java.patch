@@ -1,0 +1,247 @@
+--- /dev/null
++++ b/net/minecraft/src/DeathRouletteDimensionManager.java
+@@ -1,0 +1,244 @@
++package net.minecraft.src;
++
++import java.util.HashMap;
++import java.util.Iterator;
++import java.util.List;
++import java.util.Map;
++import net.minecraft.server.MinecraftServer;
++
++public class DeathRouletteDimensionManager {
++	private static final Map savedOverworldPos = new HashMap();
++	private static int spawnTickCounter = 0;
++
++	public static boolean isCustomDimension(int dimId) {
++		return dimId >= 24 && dimId <= 29;
++	}
++
++	public static boolean isAnyPlayerInCustomDimension(MinecraftServer server) {
++		if(server == null || server.getConfigurationManager() == null) {
++			return false;
++		}
++		List players = server.getConfigurationManager().playerEntityList;
++		if(players == null) {
++			return false;
++		}
++		for(int i = 0; i < players.size(); ++i) {
++			EntityPlayerMP p = (EntityPlayerMP)players.get(i);
++			if(isCustomDimension(p.bK)) {
++				return true;
++			}
++		}
++		return false;
++	}
++
++	public static void teleportToDimension(MinecraftServer server, EntityPlayerMP player, int targetDim) {
++		if(server == null || player == null || player.playerNetServerHandler == null) {
++			return;
++		}
++
++		BiomeGenDimension.init();
++		if(targetDim == 29) {
++			BiomeGenDimension.randomizeDim29Seed();
++		}
++
++		int oldDim = player.bK;
++		if(oldDim == 0 && isCustomDimension(targetDim)) {
++			savedOverworldPos.put(player.username, new double[]{
++				player.posX, player.posY, player.posZ, player.rotationYaw, player.rotationPitch
++			});
++		}
++
++		if(oldDim == targetDim) {
++			if(isCustomDimension(targetDim)) {
++				WorldServer ws = server.worldServerForDimension(targetDim);
++				spawnDimensionEntitiesNearPlayer(ws, player, 8);
++			}
++			return;
++		}
++
++		ServerConfigurationManager scm = server.getConfigurationManager();
++		WorldServer oldWorld = server.worldServerForDimension(oldDim);
++		WorldServer newWorld = server.worldServerForDimension(targetDim);
++		if(newWorld == null) {
++			return;
++		}
++
++		double tx = 0.5D;
++		double ty = 70.0D;
++		double tz = 0.5D;
++		float yaw = player.rotationYaw;
++		float pitch = player.rotationPitch;
++
++		if(targetDim == 0) {
++			double[] saved = (double[])savedOverworldPos.get(player.username);
++			if(saved != null) {
++				tx = saved[0];
++				ty = saved[1];
++				tz = saved[2];
++				yaw = (float)saved[3];
++				pitch = (float)saved[4];
++				newWorld.theChunkProviderServer.loadChunk(MathHelper.floor_double(tx) >> 4, MathHelper.floor_double(tz) >> 4);
++			} else {
++				ChunkCoordinates spawn = newWorld.getSpawnPoint();
++				tx = (double)spawn.posX + 0.5D;
++				tz = (double)spawn.posZ + 0.5D;
++				newWorld.theChunkProviderServer.loadChunk(spawn.posX >> 4, spawn.posZ >> 4);
++				int topY = newWorld.getTopSolidOrLiquidBlock(spawn.posX, spawn.posZ);
++				ty = (double)Math.max(64, topY) + 1.0D;
++			}
++		} else {
++			for(int cx = -1; cx <= 1; ++cx) {
++				for(int cz = -1; cz <= 1; ++cz) {
++					newWorld.theChunkProviderServer.loadChunk(cx, cz);
++				}
++			}
++			int topY = newWorld.getTopSolidOrLiquidBlock(0, 0);
++			if(topY < 60) {
++				topY = 64;
++			}
++			for(int dx = -1; dx <= 1; ++dx) {
++				for(int dz = -1; dz <= 1; ++dz) {
++					int bid = newWorld.getBlockId(dx, topY - 1, dz);
++					if(bid == 0 || Block.blocksList[bid] == null || Block.blocksList[bid].blockMaterial.isLiquid()) {
++						newWorld.setBlockToAir(dx, topY - 1, dz, Block.grass.blockID);
++					}
++					newWorld.setBlockToAir(dx, topY, dz, 0);
++					newWorld.setBlockToAir(dx, topY + 1, dz, 0);
++				}
++			}
++			tx = 0.5D;
++			ty = (double)topY + 0.5D;
++			tz = 0.5D;
++		}
++
++		player.bK = targetDim;
++		player.playerNetServerHandler.b(new Packet9Respawn(
++			player.bK,
++			(byte)newWorld.difficultySetting,
++			newWorld.getWorldInfo().getTerrainType(),
++			newWorld.getHeight(),
++			player.theItemInWorldManager.getGameType()
++		));
++
++		oldWorld.removePlayerEntityDangerously(player);
++		player.isDead = false;
++		player.setLocationAndAngles(tx, ty, tz, yaw, pitch);
++
++		if(player.isEntityAlive()) {
++			newWorld.spawnEntityInWorld(player);
++			player.setLocationAndAngles(tx, ty, tz, yaw, pitch);
++			newWorld.updateEntityWithOptionalForce(player, false);
++		}
++
++		player.setWorld(newWorld);
++		scm.func_72375_a(player, oldWorld);
++		player.playerNetServerHandler.setPlayerLocation(player.posX, player.posY, player.posZ, player.rotationYaw, player.rotationPitch);
++		player.theItemInWorldManager.setWorld(newWorld);
++		scm.updateTimeAndWeatherForPlayer(player, newWorld);
++		scm.syncPlayerInventory(player);
++
++		Iterator it = player.getActivePotionEffects().iterator();
++		while(it.hasNext()) {
++			PotionEffect effect = (PotionEffect)it.next();
++			player.playerNetServerHandler.b(new Packet41EntityEffect(player.entityId, effect));
++		}
++
++		if(isCustomDimension(targetDim)) {
++			DeathRouletteServerManager.onEnterCustomDimension();
++			spawnDimensionEntitiesNearPlayer(newWorld, player, 10);
++		}
++	}
++
++	public static void escapeAllPlayersToOverworld(MinecraftServer server) {
++		if(server == null || server.getConfigurationManager() == null) {
++			return;
++		}
++		List players = server.getConfigurationManager().playerEntityList;
++		for(int i = 0; i < players.size(); ++i) {
++			EntityPlayerMP p = (EntityPlayerMP)players.get(i);
++			if(isCustomDimension(p.bK)) {
++				teleportToDimension(server, p, 0);
++			}
++		}
++	}
++
++	public static void tickCustomDimensionWorld(WorldServer world) {
++		if(world == null || !isCustomDimension(world.provider.dimensionId)) {
++			return;
++		}
++
++		// Keep weather completely clear so daytime brightness stays constant
++		world.getWorldInfo().setRaining(false);
++		world.getWorldInfo().setThundering(false);
++		world.rainingStrength = 0.0F;
++		world.thunderingStrength = 0.0F;
++		world.skylightSubtracted = 0;
++
++		BiomeGenDimension biome = BiomeGenDimension.getBiomeForDimension(world.provider.dimensionId);
++		Class[] allowed = biome.allowedEntities;
++
++		// Remove any living entity that is not a player and not in allowedEntities
++		int allowedCount = 0;
++		for(int i = 0; i < world.loadedEntityList.size(); ++i) {
++			Entity ent = (Entity)world.loadedEntityList.get(i);
++			if(ent instanceof EntityLiving && !(ent instanceof EntityPlayer)) {
++				boolean ok = false;
++				for(int j = 0; j < allowed.length; ++j) {
++					if(ent.getClass() == allowed[j]) {
++						ok = true;
++						break;
++					}
++				}
++				if(!ok) {
++					ent.setDead();
++				} else {
++					++allowedCount;
++				}
++			}
++		}
++
++		++spawnTickCounter;
++		if(spawnTickCounter >= 40) {
++			spawnTickCounter = 0;
++			if(allowedCount < 28 && !world.playerEntities.isEmpty()) {
++				for(int i = 0; i < world.playerEntities.size(); ++i) {
++					EntityPlayer p = (EntityPlayer)world.playerEntities.get(i);
++					spawnDimensionEntitiesNearPlayer(world, p, 4);
++				}
++			}
++		}
++	}
++
++	public static void spawnDimensionEntitiesNearPlayer(WorldServer world, EntityPlayer player, int count) {
++		if(world == null || player == null || !isCustomDimension(world.provider.dimensionId)) {
++			return;
++		}
++		BiomeGenDimension biome = BiomeGenDimension.getBiomeForDimension(world.provider.dimensionId);
++		Class[] allowed = biome.allowedEntities;
++		if(allowed == null || allowed.length == 0) {
++			return;
++		}
++
++		for(int i = 0; i < count; ++i) {
++			Class cls = allowed[world.rand.nextInt(allowed.length)];
++			double dist = 10.0D + world.rand.nextDouble() * 20.0D;
++			double angle = world.rand.nextDouble() * Math.PI * 2.0D;
++			int sx = MathHelper.floor_double(player.posX + Math.cos(angle) * dist);
++			int sz = MathHelper.floor_double(player.posZ + Math.sin(angle) * dist);
++			if(!world.blockExists(sx, 64, sz)) {
++				continue;
++			}
++			int sy = world.getTopSolidOrLiquidBlock(sx, sz);
++			if(sy <= 0) {
++				sy = 64;
++			}
++			try {
++				EntityLiving entity = (EntityLiving)cls.getConstructor(new Class[]{World.class}).newInstance(new Object[]{world});
++				entity.setLocationAndAngles((double)sx + 0.5D, (double)sy, (double)sz + 0.5D, world.rand.nextFloat() * 360.0F, 0.0F);
++				world.spawnEntityInWorld(entity);
++			} catch (Exception e) {
++				e.printStackTrace();
++			}
++		}
++	}
++}

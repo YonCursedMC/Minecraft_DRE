@@ -1,0 +1,10 @@
+--- a/net/minecraft/src/Block.java
++++ b/net/minecraft/src/Block.java
+@@ -157,6 +157,7 @@
+ 	public static final Block stairsWoodSpruce = (new BlockStairs(134, planks, 1)).setUnlocalizedName("stairsWoodSpruce").setRequiresSelfNotify();
+ 	public static final Block stairsWoodBirch = (new BlockStairs(135, planks, 2)).setUnlocalizedName("stairsWoodBirch").setRequiresSelfNotify();
+ 	public static final Block stairsWoodJungle = (new BlockStairs(136, planks, 3)).setUnlocalizedName("stairsWoodJungle").setRequiresSelfNotify();
++	public static final Block none = (new Block(137, Material.rock)).setUnlocalizedName("").setRequiresSelfNotify();
+ 	public int blockIndexInTexture;
+ 	public final int blockID;
+ 	protected float blockHardness;

@@ -1,0 +1,28 @@
+--- a/net/minecraft/src/NetClientHandler.java
++++ b/net/minecraft/src/NetClientHandler.java
+@@ -913,6 +913,15 @@
+ 	}
+ 
+ 	public void handleCustomPayload(Packet250CustomPayload packet250CustomPayload1) {
++		if(DeathRouletteServerManager.CHANNEL.equals(packet250CustomPayload1.channel)) {
++			DeathRouletteManager.handleServerPacket(this.mc, packet250CustomPayload1);
++			return;
++		}
++		if(ClientEvents.CHANNEL.equals(packet250CustomPayload1.channel)) {
++			ClientEvents.handleClientPacket(this.mc, packet250CustomPayload1);
++			return;
++		}
++
+ 		if("MC|TPack".equals(packet250CustomPayload1.channel)) {
+ 			String[] string2 = (new String(packet250CustomPayload1.data)).split("\u0000");
+ 			String string3 = string2[0];
+@@ -943,5 +952,9 @@
+ 
+ 	public INetworkManager getNetManager() {
+ 		return this.netManager;
++	}
++
++	public void handleSound(Packet81Sound packet81Sound) {
++
+ 	}
+ }

@@ -1,0 +1,21 @@
+--- /dev/null
++++ b/net/minecraft/src/EntityHerobrine.java
+@@ -1,0 +1,18 @@
++package net.minecraft.src;
++
++public class EntityHerobrine extends EntityMob {
++	public EntityHerobrine(World world1) {
++		super(world1);
++		this.texture = "/addmob/hero.png";
++		this.moveSpeed = 0.0F;
++		this.attackStrength = 1;
++	}
++
++	public int getMaxHealth() {
++		return 20;
++	}
++
++	public void onLivingUpdate() {
++		super.onLivingUpdate();
++	}
++}

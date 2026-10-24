@@ -1,0 +1,119 @@
+--- /dev/null
++++ b/net/minecraft/src/SignPlacer.java
+@@ -1,0 +1,116 @@
++package net.minecraft.src;
++
++/**
++ * Helper class for placing a Sign (standing sign or wall sign) with custom text on lines 1~4.
++ * Works on both Client (IntegratedServer) and Server.
++ *
++ * Examples:
++ *   // 1. Place at the player's position facing the player:
++ *   SignPlacer.place(player, "Line 1", "Line 2", "Line 3", "Line 4");
++ *
++ *   // 2. Place 2 blocks in front of the player facing the player:
++ *   SignPlacer.placeInFront(player, 2, "Hello", "Death", "Roulette", "!");
++ *
++ *   // 3. Place at exact coordinates (x, y, z) facing the player:
++ *   SignPlacer.placeAt(player, x, y, z, "Line 1", "Line 2", "Line 3", "Line 4");
++ *
++ *   // 4. Place at exact coordinates (x, y, z) with rotation (0~15):
++ *   SignPlacer.placeAt(player.worldObj, x, y, z, 0, "Line 1", "Line 2", "Line 3", "Line 4");
++ */
++public class SignPlacer {
++
++	/**
++	 * Places a standing sign at the player's current position, facing the player.
++	 */
++	public static void place(EntityPlayer player, String line1, String line2, String line3, String line4) {
++		if(player == null || player.worldObj == null) {
++			return;
++		}
++		int x = MathHelper.floor_double(player.posX);
++		int y = MathHelper.floor_double(player.posY);
++		int z = MathHelper.floor_double(player.posZ);
++		placeAt(player, x, y, z, line1, line2, line3, line4);
++	}
++
++	/**
++	 * Places a standing sign at the player's current position with a single line of text (on line 1).
++	 */
++	public static void place(EntityPlayer player, String line1) {
++		place(player, line1, "", "", "");
++	}
++
++	/**
++	 * Places a standing sign `distance` blocks in front of the player, facing the player.
++	 */
++	public static void placeInFront(EntityPlayer player, int distance, String line1, String line2, String line3, String line4) {
++		if(player == null || player.worldObj == null) {
++			return;
++		}
++		double rad = Math.toRadians((double)player.rotationYaw);
++		double dx = -Math.sin(rad) * (double)distance;
++		double dz = Math.cos(rad) * (double)distance;
++		int x = MathHelper.floor_double(player.posX + dx);
++		int y = MathHelper.floor_double(player.posY);
++		int z = MathHelper.floor_double(player.posZ + dz);
++		placeAt(player, x, y, z, line1, line2, line3, line4);
++	}
++
++	/**
++	 * Places a standing sign at (x, y, z) rotated to face the player.
++	 */
++	public static void placeAt(EntityPlayer player, int x, int y, int z, String line1, String line2, String line3, String line4) {
++		if(player == null || player.worldObj == null) {
++			return;
++		}
++		int rotation = MathHelper.floor_double((double)((player.rotationYaw + 180.0F) * 16.0F / 360.0F) + 0.5D) & 15;
++		placeAt(player.worldObj, x, y, z, rotation, line1, line2, line3, line4);
++	}
++
++	/**
++	 * Places a standing sign at (x, y, z) with explicit rotation (0 ~ 15).
++	 * 0 = South, 4 = West, 8 = North, 12 = East
++	 */
++	public static void placeAt(World world, int x, int y, int z, int rotation, String line1, String line2, String line3, String line4) {
++		if(world == null) {
++			return;
++		}
++		world.d(x, y, z, Block.signPost.blockID, rotation & 15);
++		applySignText(world, x, y, z, line1, line2, line3, line4);
++	}
++
++	/**
++	 * Places a wall sign at (x, y, z) with wall direction metadata (2=North, 3=South, 4=West, 5=East).
++	 */
++	public static void placeWallSign(World world, int x, int y, int z, int directionMeta, String line1, String line2, String line3, String line4) {
++		if(world == null) {
++			return;
++		}
++		world.d(x, y, z, Block.signWall.blockID, directionMeta);
++		applySignText(world, x, y, z, line1, line2, line3, line4);
++	}
++
++	private static void applySignText(World world, int x, int y, int z, String line1, String line2, String line3, String line4) {
++		TileEntity te = world.getBlockTileEntity(x, y, z);
++		if(!(te instanceof TileEntitySign)) {
++			te = new TileEntitySign();
++			world.setBlockTileEntity(x, y, z, te);
++		}
++		TileEntitySign sign = (TileEntitySign)te;
++		sign.signText[0] = formatLine(line1);
++		sign.signText[1] = formatLine(line2);
++		sign.signText[2] = formatLine(line3);
++		sign.signText[3] = formatLine(line4);
++		sign.onInventoryChanged();
++		world.markBlockForUpdate(x, y, z);
++	}
++
++	private static String formatLine(String text) {
++		if(text == null) {
++			return "";
++		}
++		if(text.length() > 15) {
++			return text.substring(0, 15);
++		}
++		return text;
++	}
++}

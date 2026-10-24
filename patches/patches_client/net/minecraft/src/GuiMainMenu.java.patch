@@ -1,0 +1,29 @@
+--- a/net/minecraft/src/GuiMainMenu.java
++++ b/net/minecraft/src/GuiMainMenu.java
+@@ -300,13 +300,14 @@
+ 	}
+ 
+ 	public void drawScreen(int i1, int i2, float f3) {
+-		this.renderSkybox(i1, i2, f3);
++		//this.renderSkybox(i1, i2, f3);
++		this.drawBackground(0);
+ 		Tessellator tessellator4 = Tessellator.instance;
+ 		short s5 = 274;
+ 		int i6 = this.width / 2 - s5 / 2;
+ 		byte b7 = 30;
+-		this.drawGradientRect(0, 0, this.width, this.height, -2130706433, 0xFFFFFF);
+-		this.drawGradientRect(0, 0, this.width, this.height, 0, Integer.MIN_VALUE);
++		//this.drawGradientRect(0, 0, this.width, this.height, -2130706433, 0xFFFFFF);
++		//this.drawGradientRect(0, 0, this.width, this.height, 0, Integer.MIN_VALUE);
+ 		GL11.glBindTexture(GL11.GL_TEXTURE_2D, this.mc.renderEngine.getTexture("/title/mclogo.png"));
+ 		GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+ 		if((double)this.updateCounter < 1.0E-4D) {
+@@ -329,7 +330,7 @@
+ 		GL11.glScalef(f8, f8, f8);
+ 		this.drawCenteredString(this.fontRenderer, this.splashText, 0, -8, 16776960);
+ 		GL11.glPopMatrix();
+-		String string9 = "Minecraft 1.3.2";
++		String string9 = "Minecraft DRE";
+ 		if(this.mc.isDemo()) {
+ 			string9 = string9 + " Demo";
+ 		}

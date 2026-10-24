@@ -1,0 +1,140 @@
+--- /dev/null
++++ b/net/minecraft/src/BiomeGenDimension.java
+@@ -1,0 +1,137 @@
++package net.minecraft.src;
++
++import java.awt.Color;
++import java.util.Random;
++
++public class BiomeGenDimension extends BiomeGenBase {
++	public static final BiomeGenDimension dim24 = new BiomeGenDimension(
++		40, 24, "Dim24_PublicVoid", 0x808080, false,
++		new Class[]{EntityPublicVoid.class}
++	);
++	public static final BiomeGenDimension dim25 = new BiomeGenDimension(
++		41, 25, "Dim25_RomanescoZimber", 0xE03030, false,
++		new Class[]{EntityRomanesco.class, EntityZimber.class}
++	);
++	public static final BiomeGenDimension dim26 = new BiomeGenDimension(
++		42, 26, "Dim26_Herobrine", 0xFFFFFF, false,
++		new Class[]{EntityHerobrine.class}
++	);
++	public static final BiomeGenDimension dim27 = new BiomeGenDimension(
++		43, 27, "Dim27_LongLeggedSteveS", 0x3070FF, false,
++		new Class[]{EntityLongLeggedSteveS.class}
++	);
++	public static final BiomeGenDimension dim28 = new BiomeGenDimension(
++		44, 28, "Dim28_LongFixS", 0xFFEE22, false,
++		new Class[]{EntityLongFixS.class}
++	);
++	public static final BiomeGenDimension dim29 = new BiomeGenDimension(
++		45, 29, "Dim29_ThatThing", 0xFF55FF, true,
++		new Class[]{EntityThatThing.class}
++	);
++
++	public static volatile int dim29ColorSeed = (int)System.currentTimeMillis();
++
++	public final int dimensionId;
++	public final int terrainColor;
++	public final boolean randomColor;
++	public final Class[] allowedEntities;
++
++	protected BiomeGenDimension(int biomeId, int dimId, String name, int terrainColor, boolean randomColor, Class[] entities) {
++		super(biomeId);
++		this.dimensionId = dimId;
++		this.terrainColor = terrainColor;
++		this.randomColor = randomColor;
++		this.allowedEntities = entities;
++
++		this.setBiomeName(name);
++		this.setColor(terrainColor);
++		this.topBlock = (byte)Block.grass.blockID;
++		this.fillerBlock = (byte)Block.dirt.blockID;
++		this.minHeight = 0.08F;
++		this.maxHeight = 0.16F;
++		this.temperature = 0.8F;
++		this.rainfall = 0.4F;
++		this.waterColorMultiplier = terrainColor;
++
++		// Plains-like decoration with occasional trees
++		this.theBiomeDecorator.treesPerChunk = 0;
++		this.theBiomeDecorator.flowersPerChunk = 2;
++		this.theBiomeDecorator.grassPerChunk = 8;
++
++		// Only spawn the specified entities for this dimension
++		this.K.clear();
++		this.spawnableMonsterList.clear();
++		this.spawnableCaveCreatureList.clear();
++
++		for(int i = 0; i < entities.length; ++i) {
++			Class entityCls = entities[i];
++			this.spawnableMonsterList.add(new SpawnListEntry(entityCls, 100, 3, 5));
++			this.K.add(new SpawnListEntry(entityCls, 100, 2, 4));
++		}
++	}
++
++	public static void init() {
++		// Ensure static fields are initialized and registered into BiomeGenBase.biomeList
++	}
++
++	public static void randomizeDim29Seed() {
++		dim29ColorSeed = new Random().nextInt();
++	}
++
++	public static BiomeGenDimension getBiomeForDimension(int dimId) {
++		switch(dimId) {
++		case 24:
++			return dim24;
++		case 25:
++			return dim25;
++		case 26:
++			return dim26;
++		case 27:
++			return dim27;
++		case 28:
++			return dim28;
++		case 29:
++			return dim29;
++		default:
++			return dim24;
++		}
++	}
++
++	public int getTerrainColorAt(int x, int y, int z) {
++		if(!this.randomColor) {
++			return this.terrainColor;
++		}
++		int h = (x * 73428767) ^ (y * 912931) ^ (z * 4382893) ^ dim29ColorSeed;
++		h ^= (h >>> 16);
++		h *= 0x85ebca6b;
++		h ^= (h >>> 13);
++		float hue = ((h & 0xFFFF) / 65535.0F);
++		float sat = 0.65F + (((h >>> 16) & 0xFF) / 255.0F) * 0.35F;
++		return Color.HSBtoRGB(hue, sat, 1.0F) & 0xFFFFFF;
++	}
++
++	public int getBiomeGrassColor() {
++		if(this.randomColor) {
++			return getTerrainColorAt(0, 64, 0);
++		}
++		return this.terrainColor;
++	}
++
++	public int getBiomeFoliageColor() {
++		if(this.randomColor) {
++			return getTerrainColorAt(1, 64, 1);
++		}
++		return this.terrainColor;
++	}
++
++	public int getSkyColorByTemp(float temp) {
++		if(this.randomColor) {
++			return getTerrainColorAt(2, 128, 2);
++		}
++		return this.terrainColor;
++	}
++
++	public boolean canSpawnLightningBolt() {
++		return false;
++	}
++}

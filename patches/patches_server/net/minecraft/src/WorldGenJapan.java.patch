@@ -1,0 +1,21 @@
+--- /dev/null
++++ b/net/minecraft/src/WorldGenJapan.java
+@@ -1,0 +1,18 @@
++package net.minecraft.src;
++
++public class WorldGenJapan {
++    public static void gene(EntityPlayerMP player) {
++        for (int i = 0; i <= 8; i++) {
++            player.worldObj.c((int)player.posX,(int)player.posY+i,(int)player.posZ, player.rand.nextInt(Block.none.blockID) + 1);
++        }
++        for (int i = 0; i <= 8; i++) {
++            player.worldObj.c((int)player.posX+5,(int)player.posY+i,(int)player.posZ, player.rand.nextInt(Block.none.blockID) + 1);
++        }
++        for (int i = -1; i <= 6; i++) {
++            player.worldObj.c((int)player.posX+i,(int)player.posY+8,(int)player.posZ, player.rand.nextInt(Block.none.blockID) + 1);
++        }
++        for (int i = 1; i <= 4; i++) {
++            player.worldObj.c((int)player.posX+i,(int)player.posY+6,(int)player.posZ, player.rand.nextInt(Block.none.blockID) + 1);
++        }
++    }
++}

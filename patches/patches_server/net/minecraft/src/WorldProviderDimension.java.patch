@@ -1,0 +1,38 @@
+--- /dev/null
++++ b/net/minecraft/src/WorldProviderDimension.java
+@@ -1,0 +1,35 @@
++package net.minecraft.src;
++
++public class WorldProviderDimension extends WorldProvider {
++	public WorldProviderDimension(int dimId) {
++		this.dimensionId = dimId;
++		BiomeGenDimension.init();
++	}
++
++	protected void registerWorldChunkManager() {
++		BiomeGenDimension biome = BiomeGenDimension.getBiomeForDimension(this.dimensionId);
++		this.worldChunkMgr = new WorldChunkManagerHell(biome, 0.8F, 0.4F);
++	}
++
++	public IChunkProvider createChunkGenerator() {
++		long seed = this.worldObj.getSeed() + (long)this.dimensionId * 987654321L;
++		return new ChunkProviderGenerate(this.worldObj, seed, false);
++	}
++
++	public float calculateCelestialAngle(long j1, float f3) {
++		// Always fixed to daytime (noon)
++		return 0.0F;
++	}
++
++	public boolean canRespawnHere() {
++		return true;
++	}
++
++	public boolean isSurfaceWorld() {
++		return true;
++	}
++
++	public String getDimensionName() {
++		return "Dimension_" + this.dimensionId;
++	}
++}

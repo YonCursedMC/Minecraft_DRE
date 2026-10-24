@@ -1,0 +1,54 @@
+--- a/net/minecraft/src/EntityMob.java
++++ b/net/minecraft/src/EntityMob.java
+@@ -10,7 +10,7 @@
+ 
+ 	public void onLivingUpdate() {
+ 		float f1 = this.getBrightness(1.0F);
+-		if(f1 > 0.5F) {
++		if(f1 > 0.5F && (this.worldObj == null || this.worldObj.provider == null || !DeathRouletteDimensionManager.isCustomDimension(this.worldObj.provider.dimensionId))) {
+ 			this.entityAge += 2;
+ 		}
+ 
+@@ -19,9 +19,6 @@
+ 
+ 	public void onUpdate() {
+ 		super.onUpdate();
+-		if(!this.worldObj.isRemote && this.worldObj.difficultySetting == 0) {
+-			this.setDead();
+-		}
+ 
+ 	}
+ 
+@@ -57,7 +54,14 @@
+ 			i2 -= 2 << this.getActivePotionEffect(Potion.weakness).getAmplifier();
+ 		}
+ 
+-		return entity1.attackEntityFrom(DamageSource.causeMobDamage(this), i2);
++		boolean z3 = entity1.attackEntityFrom(DamageSource.causeMobDamage(this), i2);
++		if(entity1 instanceof EntityPlayer) {
++			this.onAttackPlayer((EntityPlayer)entity1);
++			if(entity1 instanceof EntityPlayerMP) {
++				this.onAttackPlayerMP((EntityPlayerMP)entity1);
++			}
++		}
++		return z3;
+ 	}
+ 
+ 	protected void attackEntity(Entity entity1, float f2) {
+@@ -69,10 +73,16 @@
+ 	}
+ 
+ 	public float getBlockPathWeight(int i1, int i2, int i3) {
++		if(this.worldObj != null && this.worldObj.provider != null && DeathRouletteDimensionManager.isCustomDimension(this.worldObj.provider.dimensionId)) {
++			return 0.5F;
++		}
+ 		return 0.5F - this.worldObj.getLightBrightness(i1, i2, i3);
+ 	}
+ 
+ 	protected boolean isValidLightLevel() {
++		if(this.worldObj != null && this.worldObj.provider != null && DeathRouletteDimensionManager.isCustomDimension(this.worldObj.provider.dimensionId)) {
++			return true;
++		}
+ 		int i1 = MathHelper.floor_double(this.posX);
+ 		int i2 = MathHelper.floor_double(this.boundingBox.minY);
+ 		int i3 = MathHelper.floor_double(this.posZ);

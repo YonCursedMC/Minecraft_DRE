@@ -1,0 +1,12 @@
+--- a/net/minecraft/src/WorldProvider.java
++++ b/net/minecraft/src/WorldProvider.java
+@@ -112,6 +112,9 @@
+ 	}
+ 
+ 	public static WorldProvider getProviderForDimension(int i0) {
++		if(DeathRouletteDimensionManager.isCustomDimension(i0)) {
++			return new WorldProviderDimension(i0);
++		}
+ 		return (WorldProvider)(i0 == -1 ? new WorldProviderHell() : (i0 == 0 ? new WorldProviderSurface() : (i0 == 1 ? new WorldProviderEnd() : null)));
+ 	}
+ 

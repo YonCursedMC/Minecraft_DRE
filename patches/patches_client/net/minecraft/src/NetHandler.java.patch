@@ -1,0 +1,11 @@
+--- a/net/minecraft/src/NetHandler.java
++++ b/net/minecraft/src/NetHandler.java
+@@ -284,4 +284,8 @@
+ 	public boolean canProcessPacketsAsync() {
+ 		return false;
+ 	}
++
++	public void handleSound(Packet81Sound packet81Sound) {
++		this.unexpectedPacket(packet81Sound);
++	}
+ }

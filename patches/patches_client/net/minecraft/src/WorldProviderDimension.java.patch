@@ -1,0 +1,51 @@
+--- /dev/null
++++ b/net/minecraft/src/WorldProviderDimension.java
+@@ -1,0 +1,48 @@
++package net.minecraft.src;
++
++public class WorldProviderDimension extends WorldProvider {
++	public WorldProviderDimension(int dimId) {
++		this.dimensionId = dimId;
++		BiomeGenDimension.init();
++	}
++
++	protected void registerWorldChunkManager() {
++		BiomeGenDimension biome = BiomeGenDimension.getBiomeForDimension(this.dimensionId);
++		this.worldChunkMgr = new WorldChunkManagerHell(biome, 0.8F, 0.4F);
++	}
++
++	public IChunkProvider createChunkGenerator() {
++		long seed = this.worldObj.getSeed() + (long)this.dimensionId * 987654321L;
++		return new ChunkProviderGenerate(this.worldObj, seed, false);
++	}
++
++	public float calculateCelestialAngle(long j1, float f3) {
++		// Always fixed to daytime (noon)
++		return 0.0F;
++	}
++
++	public float[] calcSunriseSunsetColors(float f1, float f2) {
++		return null;
++	}
++
++	public Vec3 getFogColor(float f1, float f2) {
++		BiomeGenDimension biome = BiomeGenDimension.getBiomeForDimension(this.dimensionId);
++		int rgb = biome.getBiomeGrassColor();
++		double r = (double)((rgb >> 16) & 255) / 255.0D;
++		double g = (double)((rgb >> 8) & 255) / 255.0D;
++		double b = (double)(rgb & 255) / 255.0D;
++		return Vec3.getVec3Pool().getVecFromPool(r, g, b);
++	}
++
++	public boolean canRespawnHere() {
++		return true;
++	}
++
++	public boolean isSurfaceWorld() {
++		return true;
++	}
++
++	public String getDimensionName() {
++		return "Dimension_" + this.dimensionId;
++	}
++}

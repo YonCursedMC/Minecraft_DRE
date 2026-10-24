@@ -1,0 +1,13 @@
+--- a/net/minecraft/src/AnvilSaveHandler.java
++++ b/net/minecraft/src/AnvilSaveHandler.java
+@@ -18,6 +18,10 @@
+ 			file3 = new File(file2, "DIM1");
+ 			file3.mkdirs();
+ 			return new AnvilChunkLoader(file3);
++		} else if(worldProvider1 instanceof WorldProviderDimension) {
++			file3 = new File(file2, "DIM" + worldProvider1.dimensionId);
++			file3.mkdirs();
++			return new AnvilChunkLoader(file3);
+ 		} else {
+ 			return new AnvilChunkLoader(file2);
+ 		}

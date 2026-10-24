@@ -1,0 +1,10 @@
+--- a/net/minecraft/src/Packet.java
++++ b/net/minecraft/src/Packet.java
+@@ -268,6 +268,7 @@
+ 		addIdClassMapping(62, true, false, Packet62LevelSound.class);
+ 		addIdClassMapping(70, true, false, Packet70GameEvent.class);
+ 		addIdClassMapping(71, true, false, Packet71Weather.class);
++		addIdClassMapping(81, false, true, Packet81Sound.class);
+ 		addIdClassMapping(100, true, false, Packet100OpenWindow.class);
+ 		addIdClassMapping(101, true, true, Packet101CloseWindow.class);
+ 		addIdClassMapping(102, false, true, Packet102WindowClick.class);

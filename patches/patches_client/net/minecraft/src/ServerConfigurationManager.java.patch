@@ -1,0 +1,19 @@
+--- a/net/minecraft/src/ServerConfigurationManager.java
++++ b/net/minecraft/src/ServerConfigurationManager.java
+@@ -197,12 +197,15 @@
+ 	}
+ 
+ 	public EntityPlayerMP respawnPlayer(EntityPlayerMP entityPlayerMP1, int i2, boolean z3) {
++		if(!z3 && DeathRouletteDimensionManager.isCustomDimension(entityPlayerMP1.bK)) {
++			i2 = entityPlayerMP1.bK;
++		}
+ 		entityPlayerMP1.getServerForPlayer().getEntityTracker().removePlayerFromTrackers(entityPlayerMP1);
+ 		entityPlayerMP1.getServerForPlayer().getEntityTracker().removeEntityFromAllTrackingPlayers(entityPlayerMP1);
+ 		entityPlayerMP1.getServerForPlayer().getPlayerManager().removePlayer(entityPlayerMP1);
+ 		this.playerEntityList.remove(entityPlayerMP1);
+ 		this.mcServer.worldServerForDimension(entityPlayerMP1.bK).removePlayerEntityDangerously(entityPlayerMP1);
+-		ChunkCoordinates chunkCoordinates4 = entityPlayerMP1.getBedLocation();
++		ChunkCoordinates chunkCoordinates4 = DeathRouletteDimensionManager.isCustomDimension(i2) ? null : entityPlayerMP1.getBedLocation();
+ 		entityPlayerMP1.bK = i2;
+ 		Object object5;
+ 		if(this.mcServer.isDemo()) {

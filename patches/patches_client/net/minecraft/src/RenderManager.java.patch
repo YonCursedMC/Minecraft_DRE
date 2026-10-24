@@ -1,0 +1,13 @@
+--- a/net/minecraft/src/RenderManager.java
++++ b/net/minecraft/src/RenderManager.java
+@@ -71,6 +71,10 @@
+ 		this.entityRenderMap.put(EntityBoat.class, new RenderBoat());
+ 		this.entityRenderMap.put(EntityFishHook.class, new RenderFish());
+ 		this.entityRenderMap.put(EntityLightningBolt.class, new RenderLightningBolt());
++		this.entityRenderMap.put(EntityLongFix.class, new RenderLongFix(new ModelLongFix(), 0.5F));
++		this.entityRenderMap.put(EntityLongLeggedSteve.class, new RenderLongLegged(new ModelLongLeggedSteve(), 0.5F));
++		this.entityRenderMap.put(EntityThatThing.class, new RenderThatThing(new ModelThatThing(), 0.5F));
++
+ 		Iterator iterator1 = this.entityRenderMap.values().iterator();
+ 
+ 		while(iterator1.hasNext()) {

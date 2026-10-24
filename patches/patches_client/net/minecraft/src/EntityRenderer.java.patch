@@ -1,0 +1,19 @@
+--- a/net/minecraft/src/EntityRenderer.java
++++ b/net/minecraft/src/EntityRenderer.java
+@@ -586,14 +586,14 @@
+ 		}
+ 
+ 		this.mc.mcProfiler.endSection();
+-		if(Display.isActive()) {
++		if(Display.isActive() || DeathRouletteManager.isTickFrozen()) {
+ 			this.prevFrameTime = Minecraft.getSystemTime();
+ 		} else if(Minecraft.getSystemTime() - this.prevFrameTime > 500L) {
+ 			this.mc.displayInGameMenu();
+ 		}
+ 
+ 		this.mc.mcProfiler.startSection("mouse");
+-		if(this.mc.inGameHasFocus) {
++		if(this.mc.inGameHasFocus && !DeathRouletteManager.isTickFrozen()) {
+ 			this.mc.mouseHelper.mouseXYChange();
+ 			float f2 = this.mc.gameSettings.mouseSensitivity * 0.6F + 0.2F;
+ 			float f3 = f2 * f2 * f2 * 8.0F;

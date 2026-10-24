@@ -1,0 +1,13 @@
+--- a/net/minecraft/src/BlockTallGrass.java
++++ b/net/minecraft/src/BlockTallGrass.java
+@@ -25,6 +25,10 @@
+ 	}
+ 
+ 	public int colorMultiplier(IBlockAccess iBlockAccess1, int i2, int i3, int i4) {
++		BiomeGenBase bCenter = iBlockAccess1.getBiomeGenForCoords(i2, i4);
++		if(bCenter instanceof BiomeGenDimension) {
++			return ((BiomeGenDimension)bCenter).getTerrainColorAt(i2, i3, i4);
++		}
+ 		int i5 = iBlockAccess1.getBlockMetadata(i2, i3, i4);
+ 		return i5 == 0 ? 0xFFFFFF : iBlockAccess1.getBiomeGenForCoords(i2, i4).getBiomeGrassColor();
+ 	}

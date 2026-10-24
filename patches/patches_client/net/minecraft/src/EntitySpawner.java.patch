@@ -1,0 +1,135 @@
+--- /dev/null
++++ b/net/minecraft/src/EntitySpawner.java
+@@ -1,0 +1,132 @@
++package net.minecraft.src;
++
++/**
++ * Helper class for spawning an Entity in front of a player (with adjustable distance)
++ * or at specific coordinates, automatically facing the player.
++ * Works on both Client (IntegratedServer) and Server.
++ *
++ * Examples:
++ *   // 1. Spawn by Entity instance (3.0 blocks in front):
++ *   EntitySpawner.spawnInFront(player, new EntityCreeper(player.worldObj), 3.0D);
++ *
++ *   // 2. Spawn by Entity name (4.0 blocks in front):
++ *   EntitySpawner.spawnInFront(player, "Zombie", 4.0D);
++ *
++ *   // 3. Spawn by Entity class (5.0 blocks in front):
++ *   EntitySpawner.spawnInFront(player, EntityEnderman.class, 5.0D);
++ *
++ *   // 4. Spawn with height offset (e.g. 3.0 blocks in front, +1.0 higher):
++ *   EntitySpawner.spawnInFront(player, new EntityCreeper(player.worldObj), 3.0D, 1.0D);
++ */
++public class EntitySpawner {
++
++	/**
++	 * Spawns the given Entity instance `distance` blocks in front of the player, facing the player.
++	 */
++	public static Entity spawnInFront(EntityPlayer player, Entity entity, double distance) {
++		return spawnInFront(player, entity, distance, 0.0D);
++	}
++
++	/**
++	 * Spawns the given Entity instance `distance` blocks in front of the player with a vertical `yOffset`, facing the player.
++	 */
++	public static Entity spawnInFront(EntityPlayer player, Entity entity, double distance, double yOffset) {
++		if(player == null || player.worldObj == null || entity == null) {
++			return null;
++		}
++		double rad = Math.toRadians((double)player.rotationYaw);
++		double x = player.posX - Math.sin(rad) * distance;
++		double y = player.posY + yOffset;
++		double z = player.posZ + Math.cos(rad) * distance;
++		return spawnAt(player, entity, x, y, z);
++	}
++
++	/**
++	 * Creates and spawns an Entity by name (e.g. "Creeper", "Zombie", "Enderman", "PrimedTnt", "LightningBolt")
++	 * `distance` blocks in front of the player, facing the player.
++	 */
++	public static Entity spawnInFront(EntityPlayer player, String entityName, double distance) {
++		return spawnInFront(player, entityName, distance, 0.0D);
++	}
++
++	/**
++	 * Creates and spawns an Entity by name `distance` blocks in front of the player with a vertical `yOffset`.
++	 */
++	public static Entity spawnInFront(EntityPlayer player, String entityName, double distance, double yOffset) {
++		if(player == null || player.worldObj == null || entityName == null) {
++			return null;
++		}
++		if("LightningBolt".equalsIgnoreCase(entityName)) {
++			double rad = Math.toRadians((double)player.rotationYaw);
++			double x = player.posX - Math.sin(rad) * distance;
++			double y = player.posY + yOffset;
++			double z = player.posZ + Math.cos(rad) * distance;
++			EntityLightningBolt bolt = new EntityLightningBolt(player.worldObj, x, y, z);
++			player.worldObj.addWeatherEffect(bolt);
++			return bolt;
++		}
++		Entity entity = EntityList.createEntityByName(entityName, player.worldObj);
++		return spawnInFront(player, entity, distance, yOffset);
++	}
++
++	/**
++	 * Creates and spawns an Entity by its Class (e.g. EntityCreeper.class) `distance` blocks in front of the player.
++	 */
++	public static Entity spawnInFront(EntityPlayer player, Class entityClass, double distance) {
++		return spawnInFront(player, entityClass, distance, 0.0D);
++	}
++
++	/**
++	 * Creates and spawns an Entity by its Class `distance` blocks in front of the player with a vertical `yOffset`.
++	 */
++	public static Entity spawnInFront(EntityPlayer player, Class entityClass, double distance, double yOffset) {
++		if(player == null || player.worldObj == null || entityClass == null) {
++			return null;
++		}
++		try {
++			Entity entity = (Entity)entityClass.getConstructor(new Class[]{World.class}).newInstance(new Object[]{player.worldObj});
++			return spawnInFront(player, entity, distance, yOffset);
++		} catch (Exception e) {
++			e.printStackTrace();
++			return null;
++		}
++	}
++
++	/**
++	 * Creates and spawns an Entity by its numerical EntityList ID `distance` blocks in front of the player.
++	 */
++	public static Entity spawnInFront(EntityPlayer player, int entityId, double distance) {
++		return spawnInFront(player, entityId, distance, 0.0D);
++	}
++
++	/**
++	 * Creates and spawns an Entity by its numerical EntityList ID `distance` blocks in front of the player with a vertical `yOffset`.
++	 */
++	public static Entity spawnInFront(EntityPlayer player, int entityId, double distance, double yOffset) {
++		if(player == null || player.worldObj == null) {
++			return null;
++		}
++		Entity entity = EntityList.a(entityId, player.worldObj);
++		return spawnInFront(player, entity, distance, yOffset);
++	}
++
++	/**
++	 * Spawns the given Entity at exact coordinates (x, y, z), rotated to face the player.
++	 */
++	public static Entity spawnAt(EntityPlayer player, Entity entity, double x, double y, double z) {
++		if(player == null || player.worldObj == null || entity == null) {
++			return null;
++		}
++		float yawFacingPlayer = MathHelper.wrapAngleTo180_float(player.rotationYaw + 180.0F);
++		entity.setLocationAndAngles(x, y, z, yawFacingPlayer, 0.0F);
++		if(entity instanceof EntityLiving) {
++			EntityLiving living = (EntityLiving)entity;
++			living.rotationYawHead = yawFacingPlayer;
++			living.renderYawOffset = yawFacingPlayer;
++		}
++		if(!player.worldObj.isRemote) {
++			player.worldObj.spawnEntityInWorld(entity);
++		}
++		return entity;
++	}
++}

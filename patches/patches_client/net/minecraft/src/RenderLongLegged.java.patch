@@ -1,0 +1,20 @@
+--- /dev/null
++++ b/net/minecraft/src/RenderLongLegged.java
+@@ -1,0 +1,17 @@
++package net.minecraft.src;
++
++public class RenderLongLegged extends RenderLiving {
++	protected ModelLongLeggedSteve modelBipedMain;
++	protected float field_77070_b;
++
++	public RenderLongLegged(ModelLongLeggedSteve modelBiped1, float f2) {
++		this(modelBiped1, f2, 1.0F);
++		this.modelBipedMain = modelBiped1;
++	}
++
++	public RenderLongLegged(ModelLongLeggedSteve modelBiped1, float f2, float f3) {
++		super(modelBiped1, f2);
++		this.modelBipedMain = modelBiped1;
++		this.field_77070_b = f3;
++	}
++}

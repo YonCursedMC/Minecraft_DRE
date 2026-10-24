@@ -1,0 +1,32 @@
+--- /dev/null
++++ b/net/minecraft/src/SimpleJnaModal.java
+@@ -1,0 +1,29 @@
++package net.minecraft.src;
++
++import com.sun.jna.Native;
++import com.sun.jna.platform.win32.WinDef.HWND;
++import com.sun.jna.win32.StdCallLibrary;
++import com.sun.jna.win32.W32APIOptions;
++
++public class SimpleJnaModal {
++    public interface MyUser32 extends StdCallLibrary {
++        MyUser32 INSTANCE = Native.load("user32", MyUser32.class, W32APIOptions.DEFAULT_OPTIONS);
++        int MessageBox(HWND hWnd, String lpText, String lpCaption, int uType);
++}
++
++    public static final int MB_ICONERROR   = 0x00000010;
++    public static final int MB_RETRYCANCEL = 0x00000005;
++    public static final int MB_TASKMODAL   = 0x00002000;
++    public static final int MB_TOPMOST     = 0x00040000;
++
++    public static void Modal(String IpText, String Caption) {
++        int flags = MB_ICONERROR | MB_RETRYCANCEL | MB_TASKMODAL | MB_TOPMOST;
++
++        MyUser32.INSTANCE.MessageBox(
++                null,
++                IpText,
++                Caption,
++                flags
++        );
++    }
++}

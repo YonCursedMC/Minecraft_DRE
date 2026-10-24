@@ -1,0 +1,190 @@
+--- /dev/null
++++ b/net/minecraft/src/FakeBsodGui.java
+@@ -1,0 +1,187 @@
++package net.minecraft.src;
++
++import java.awt.Color;
++import java.awt.Cursor;
++import java.awt.Dimension;
++import java.awt.Font;
++import java.awt.FontMetrics;
++import java.awt.Graphics;
++import java.awt.Graphics2D;
++import java.awt.Point;
++import java.awt.RenderingHints;
++import java.awt.Toolkit;
++import java.awt.event.ActionEvent;
++import java.awt.event.ActionListener;
++import java.awt.event.KeyAdapter;
++import java.awt.event.KeyEvent;
++import java.awt.image.BufferedImage;
++import javax.swing.JFrame;
++import javax.swing.JPanel;
++import javax.swing.SwingUtilities;
++import javax.swing.Timer;
++
++/**
++ * Fullscreen fake Blue Screen of Death (Windows XP ~ Windows 7 style).
++ * Auto-closes after 5 seconds to return the screen back to normal.
++ */
++public class FakeBsodGui extends JPanel implements ActionListener {
++	private static JFrame activeFrame = null;
++	public static int DURATION_MS = 5000; // 5 seconds
++
++	private final Timer timer;
++	private final long startTimeMs;
++	private int dumpPercent = 0;
++	private int tick = 0;
++
++	private static final String[] BSOD_LINES = new String[] {
++		"A problem has been detected and Windows has been shut down to prevent damage",
++		"to your computer.",
++		"",
++		"DEATH_ROULETTE_FATAL_EXCEPTION",
++		"",
++		"If this is the first time you've seen this stop error screen,",
++		"restart your computer. If this screen appears again, follow",
++		"these steps:",
++		"",
++		"Check to make sure any new hardware or software is properly installed.",
++		"If this is a new installation, ask your hardware or software manufacturer",
++		"for any Windows updates you might need.",
++		"",
++		"If problems continue, disable or remove any newly installed hardware",
++		"or software. Disable BIOS memory options such as caching or shadowing.",
++		"If you need to use Safe Mode to remove or disable components, restart",
++		"your computer, press F8 to select Advanced Startup Options, and then",
++		"select Safe Mode.",
++		"",
++		"Technical information:",
++		"",
++		"*** STOP: 0x0000007E (0xFFFFFFFFC0000005, 0xFFFFF80002E71B43, 0xFFFFF8800109A928, 0xFFFFF8800109A180)",
++		"",
++		"***  deathroulette.sys - Address FFFFF8800109A928 base at FFFFF88001090000, DateStamp 521ea8f0",
++		"",
++		"Collecting data for crash dump ...",
++		"Initializing disk for crash dump ...",
++		"Beginning dump of physical memory."
++	};
++
++	public static void showBsod() {
++		showBsod(DURATION_MS);
++	}
++
++	public static void showBsod(final int durationMs) {
++		SwingUtilities.invokeLater(new Runnable() {
++			public void run() {
++				closeBsod();
++				Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
++				JFrame frame = new JFrame("BSOD");
++				frame.setUndecorated(true);
++				frame.setAlwaysOnTop(true);
++				frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
++				frame.setBounds(0, 0, screen.width, screen.height);
++
++				// Hide real cursor
++				BufferedImage blankImg = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
++				Cursor blankCursor = Toolkit.getDefaultToolkit().createCustomCursor(blankImg, new Point(0, 0), "blank");
++				frame.getContentPane().setCursor(blankCursor);
++
++				FakeBsodGui panel = new FakeBsodGui(durationMs);
++				frame.setContentPane(panel);
++				activeFrame = frame;
++				frame.setVisible(true);
++				frame.toFront();
++				frame.requestFocus();
++			}
++		});
++	}
++
++	public static void closeBsod() {
++		if(activeFrame != null) {
++			try {
++				activeFrame.dispose();
++			} catch (Throwable ignored) {
++			}
++			activeFrame = null;
++		}
++	}
++
++	private FakeBsodGui(int durationMs) {
++		this.startTimeMs = System.currentTimeMillis();
++		this.setBackground(new Color(0, 0, 170)); // Classic Windows BSOD Blue #0000AA
++
++		this.timer = new Timer(33, this);
++		this.timer.start();
++	}
++
++	public void actionPerformed(ActionEvent e) {
++		if(activeFrame == null || !activeFrame.isDisplayable()) {
++			this.timer.stop();
++			return;
++		}
++
++		long elapsed = System.currentTimeMillis() - this.startTimeMs;
++		if(elapsed >= DURATION_MS) {
++			this.timer.stop();
++			closeBsod();
++			return;
++		}
++
++		++this.tick;
++		this.dumpPercent = (int)Math.min(100L, (elapsed * 100L) / Math.max(1L, DURATION_MS - 800L));
++		this.repaint();
++	}
++
++	protected void paintComponent(Graphics g) {
++		super.paintComponent(g);
++		Graphics2D g2 = (Graphics2D)g;
++		g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_OFF);
++
++		int w = getWidth();
++		int h = getHeight();
++
++		g2.setColor(new Color(0, 0, 170));
++		g2.fillRect(0, 0, w, h);
++
++		int fontSize = Math.max(14, Math.min(22, h / 45));
++		Font font = new Font("Lucida Console", Font.PLAIN, fontSize);
++		if(font.getFamily().equals("Dialog")) {
++			font = new Font("Consolas", Font.PLAIN, fontSize);
++		}
++		if(font.getFamily().equals("Dialog")) {
++			font = new Font(Font.MONOSPACED, Font.PLAIN, fontSize);
++		}
++		g2.setFont(font);
++		FontMetrics fm = g2.getFontMetrics();
++
++		int lineHeight = fm.getHeight();
++		int startX = Math.max(40, w / 16);
++		int startY = Math.max(50, h / 14);
++
++		g2.setColor(new Color(255, 255, 255));
++		int curY = startY;
++
++		for(int i = 0; i < BSOD_LINES.length; ++i) {
++			String line = BSOD_LINES[i];
++			g2.drawString(line, startX, curY);
++			curY += lineHeight;
++		}
++
++		// Animated physical memory dump progress line
++		String dumpLine = "Dumping physical memory to disk: " + this.dumpPercent + "%";
++		g2.drawString(dumpLine, startX, curY);
++		curY += lineHeight;
++
++		if(this.dumpPercent >= 100) {
++			g2.drawString("Physical memory dump complete.", startX, curY);
++			curY += lineHeight;
++			g2.drawString("Contact your system administrator or technical support group for further assistance.", startX, curY);
++		} else if((this.tick / 10) % 2 == 0) {
++			// Blinking block cursor
++			int textW = fm.stringWidth(dumpLine);
++			g2.fillRect(startX + textW + 4, curY - lineHeight + 3, fontSize / 2, fontSize);
++		}
++	}
++
++	public static void main(String[] args) {
++		showBsod();
++	}
++}

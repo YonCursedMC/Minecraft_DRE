@@ -1,0 +1,28 @@
+--- /dev/null
++++ b/net/minecraft/src/EntityPublicVoid.java
+@@ -1,0 +1,25 @@
++package net.minecraft.src;
++
++public class EntityPublicVoid extends EntityMob {
++	public EntityPublicVoid(World world1) {
++		super(world1);
++		this.texture = "/addmob/publicvoid.png";
++		this.moveSpeed = 1.0F;
++		this.attackStrength = 1;
++	}
++
++	public int getMaxHealth() {
++		return 20;
++	}
++
++	public void onLivingUpdate() {
++		super.onLivingUpdate();
++	}
++
++	protected void onAttackPlayerMP(EntityPlayerMP player) {
++		super.onAttackPlayerMP(player);
++		if(player.rand.nextInt(20) == 0) {
++			player.playerNetServerHandler.b(new Packet255KickDisconnect("Public Void Reason"));
++		}
++	}
++}

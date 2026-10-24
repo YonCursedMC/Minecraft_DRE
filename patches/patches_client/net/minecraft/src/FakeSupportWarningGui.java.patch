@@ -1,0 +1,430 @@
+--- /dev/null
++++ b/net/minecraft/src/FakeSupportWarningGui.java
+@@ -1,0 +1,427 @@
++package net.minecraft.src;
++
++import java.awt.AlphaComposite;
++import java.awt.BasicStroke;
++import java.awt.Color;
++import java.awt.Cursor;
++import java.awt.Dimension;
++import java.awt.Font;
++import java.awt.FontMetrics;
++import java.awt.Graphics;
++import java.awt.Graphics2D;
++import java.awt.Point;
++import java.awt.Polygon;
++import java.awt.RenderingHints;
++import java.awt.Toolkit;
++import java.awt.event.ActionEvent;
++import java.awt.event.ActionListener;
++import java.awt.event.KeyAdapter;
++import java.awt.event.KeyEvent;
++import java.awt.image.BufferedImage;
++import java.util.ArrayList;
++import java.util.List;
++import java.util.Random;
++import javax.swing.JFrame;
++import javax.swing.JPanel;
++import javax.swing.SwingUtilities;
++import javax.swing.Timer;
++
++/**
++ * Fullscreen Microsoft-style fake tech support scam warning screen with animated fake cursors.
++ * Triggered by ClientEvents.event10(Minecraft mc).
++ */
++public class FakeSupportWarningGui extends JPanel implements ActionListener {
++	private static JFrame activeFrame = null;
++
++	// Duration before auto-closing (in milliseconds)
++	public static int DURATION_MS = 12000;
++
++	private final int screenW;
++	private final int screenH;
++	private final Timer timer;
++	private final Random rand = new Random();
++	private final long startTimeMs;
++	private int tick = 0;
++
++	// Main fake cursor position & target
++	private double cursorX;
++	private double cursorY;
++	private double targetX;
++	private double targetY;
++	private final List cursorTrail = new ArrayList();
++
++	// Extra phantom cursors
++	private final double[] phantomX = new double[4];
++	private final double[] phantomY = new double[4];
++	private final double[] phantomVX = new double[4];
++	private final double[] phantomVY = new double[4];
++
++	private static final String[] SCAN_FILES = new String[] {
++		"C:\\Windows\\System32\\ntoskrnl.exe - [TROJAN.DEATHROULETTE.GEN]",
++		"C:\\Windows\\System32\\drivers\\tcpip.sys - [CRITICAL_INFECTION]",
++		"C:\\Windows\\System32\\lsass.exe - [MEMORY_DUMP_EXPOSED]",
++		"C:\\Users\\Administrator\\AppData\\Roaming\\minecraft\\level.dat - [LOCKED]",
++		"C:\\Windows\\System32\\winload.efi - [ROOTKIT.VOID.A]",
++		"C:\\Windows\\System32\\csrss.exe - [UNAUTHORIZED_REMOTE_ACCESS]",
++		"C:\\Windows\\System32\\hal.dll - [CORRUPTED_BY_HOST]",
++		"C:\\Windows\\System32\\svchost.exe - [BACKDOOR_ACTIVE_PORT_25565]"
++	};
++
++	public static void showWarning() {
++		SwingUtilities.invokeLater(new Runnable() {
++			public void run() {
++				closeWarning();
++				Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
++				JFrame frame = new JFrame("Micrasoft Cursedows Security Alert");
++				frame.setUndecorated(true);
++				frame.setAlwaysOnTop(true);
++				frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
++				frame.setBounds(0, 0, screen.width, screen.height);
++
++				// Hide the real OS cursor inside this window so only the fake cursors are visible
++				BufferedImage blankImg = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
++				Cursor blankCursor = Toolkit.getDefaultToolkit().createCustomCursor(blankImg, new Point(0, 0), "blank");
++				frame.getContentPane().setCursor(blankCursor);
++
++				FakeSupportWarningGui panel = new FakeSupportWarningGui(screen.width, screen.height);
++				frame.setContentPane(panel);
++
++				activeFrame = frame;
++				frame.setVisible(true);
++				frame.toFront();
++				frame.requestFocus();
++				WavPlaySound.playsoundLoop("/sounds/support.wav");
++			}
++		});
++	}
++
++	public static void closeWarning() {
++		WavPlaySound.stopAll();
++		if(activeFrame != null) {
++			try {
++				activeFrame.dispose();
++			} catch (Throwable ignored) {
++			}
++			activeFrame = null;
++		}
++	}
++
++	private FakeSupportWarningGui(int w, int h) {
++		this.screenW = w;
++		this.screenH = h;
++		this.startTimeMs = System.currentTimeMillis();
++
++		this.cursorX = w * 0.5D;
++		this.cursorY = h * 0.5D;
++		pickNewCursorTarget();
++
++		for(int i = 0; i < this.phantomX.length; ++i) {
++			this.phantomX[i] = this.rand.nextInt(Math.max(1, w));
++			this.phantomY[i] = this.rand.nextInt(Math.max(1, h));
++			this.phantomVX[i] = (this.rand.nextDouble() - 0.5D) * 28.0D;
++			this.phantomVY[i] = (this.rand.nextDouble() - 0.5D) * 28.0D;
++		}
++
++		this.timer = new Timer(16, this);
++		this.timer.start();
++	}
++
++	private void pickNewCursorTarget() {
++		int cx = this.screenW / 2;
++		int cy = this.screenH / 2;
++		int choice = this.rand.nextInt(4);
++		if(choice == 0) {
++			// Aim near the fake "Leave Page / OK" dialog button
++			this.targetX = cx + 150 + (this.rand.nextInt(80) - 40);
++			this.targetY = cy + 125 + (this.rand.nextInt(40) - 20);
++		} else if(choice == 1) {
++			// Aim near the top-right close [X] button
++			this.targetX = cx + 410 + (this.rand.nextInt(60) - 30);
++			this.targetY = cy - 250 + (this.rand.nextInt(40) - 20);
++		} else {
++			this.targetX = cx + (this.rand.nextInt(760) - 380);
++			this.targetY = cy + (this.rand.nextInt(480) - 240);
++		}
++	}
++
++	public void actionPerformed(ActionEvent e) {
++		if(activeFrame == null || !activeFrame.isDisplayable()) {
++			this.timer.stop();
++			return;
++		}
++
++		long elapsed = System.currentTimeMillis() - this.startTimeMs;
++		if(elapsed >= DURATION_MS) {
++			this.timer.stop();
++			closeWarning();
++			return;
++		}
++
++		++this.tick;
++
++		// Update main fake cursor with erratic jitter & target seeking
++		double dx = this.targetX - this.cursorX;
++		double dy = this.targetY - this.cursorY;
++		double dist = Math.hypot(dx, dy);
++		if(dist < 28.0D || this.tick % 24 == 0) {
++			pickNewCursorTarget();
++		}
++
++		this.cursorX += dx * 0.18D + (this.rand.nextDouble() - 0.5D) * 22.0D;
++		this.cursorY += dy * 0.18D + (this.rand.nextDouble() - 0.5D) * 22.0D;
++		this.cursorX = Math.max(10.0D, Math.min(this.screenW - 20.0D, this.cursorX));
++		this.cursorY = Math.max(10.0D, Math.min(this.screenH - 20.0D, this.cursorY));
++
++		this.cursorTrail.add(new int[]{(int)this.cursorX, (int)this.cursorY});
++		while(this.cursorTrail.size() > 10) {
++			this.cursorTrail.remove(0);
++		}
++
++		// Update phantom cursors
++		for(int i = 0; i < this.phantomX.length; ++i) {
++			this.phantomVX[i] += (this.rand.nextDouble() - 0.5D) * 6.0D;
++			this.phantomVY[i] += (this.rand.nextDouble() - 0.5D) * 6.0D;
++			this.phantomVX[i] = Math.max(-26.0D, Math.min(26.0D, this.phantomVX[i]));
++			this.phantomVY[i] = Math.max(-26.0D, Math.min(26.0D, this.phantomVY[i]));
++
++			this.phantomX[i] += this.phantomVX[i];
++			this.phantomY[i] += this.phantomVY[i];
++
++			if(this.phantomX[i] < 10.0D || this.phantomX[i] > this.screenW - 25.0D) {
++				this.phantomVX[i] = -this.phantomVX[i];
++			}
++			if(this.phantomY[i] < 10.0D || this.phantomY[i] > this.screenH - 25.0D) {
++				this.phantomVY[i] = -this.phantomVY[i];
++			}
++		}
++
++		repaint();
++	}
++
++	protected void paintComponent(Graphics g) {
++		super.paintComponent(g);
++		Graphics2D g2 = (Graphics2D)g.create();
++		g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
++		g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
++
++		// 1. Deep blue Windows Security background
++		g2.setColor(new Color(0, 68, 136));
++		g2.fillRect(0, 0, this.screenW, this.screenH);
++
++		// Top red warning stripe
++		boolean flashRed = (this.tick / 10) % 2 == 0;
++		g2.setColor(flashRed ? new Color(196, 18, 18) : new Color(145, 10, 10));
++		g2.fillRect(0, 0, this.screenW, 54);
++		g2.setColor(Color.WHITE);
++		g2.setFont(new Font("SansSerif", Font.BOLD, 20));
++		String topBanner = "\u26A0 CURSEDOWS DEFENDER SECURITY WARNING - SYSTEM LOCKED TO PREVENT DATA LOSS \u26A0";
++		FontMetrics fmTop = g2.getFontMetrics();
++		g2.drawString(topBanner, (this.screenW - fmTop.stringWidth(topBanner)) / 2, 35);
++
++		int cx = this.screenW / 2;
++		int cy = this.screenH / 2;
++
++		// 2. Background cascading fake Windows Defender window
++		int backW = 960;
++		int backH = 600;
++		int backX = cx - backW / 2 - 40;
++		int backY = cy - backH / 2 - 20;
++		drawDefenderWindow(g2, backX, backY, backW, backH);
++
++		// 3. Foreground main Security Alert window
++		int mainW = 860;
++		int mainH = 510;
++		int mainX = cx - mainW / 2 + 25;
++		int mainY = cy - mainH / 2 + 10;
++		drawMainScamAlertWindow(g2, mainX, mainY, mainW, mainH);
++
++		// 4. Center overlapping modal popup dialog (jittering slightly)
++		int jitX = (this.tick % 6 < 2) ? (this.rand.nextInt(5) - 2) : 0;
++		int jitY = (this.tick % 6 < 2) ? (this.rand.nextInt(5) - 2) : 0;
++		drawCenterModalPopup(g2, cx - 250 + jitX, cy - 85 + jitY, 500, 240);
++
++		// 5. Draw phantom cursors, cursor trail, and main erratic cursor
++		for(int i = 0; i < this.phantomX.length; ++i) {
++			drawFakeCursor(g2, (int)this.phantomX[i], (int)this.phantomY[i], 0.65F);
++		}
++		for(int i = 0; i < this.cursorTrail.size(); ++i) {
++			int[] pt = (int[])this.cursorTrail.get(i);
++			float alpha = (float)(i + 1) / (float)(this.cursorTrail.size() + 2) * 0.55F;
++			drawFakeCursor(g2, pt[0], pt[1], alpha);
++		}
++		drawFakeCursor(g2, (int)this.cursorX, (int)this.cursorY, 1.0F);
++
++		g2.dispose();
++	}
++
++	private void drawDefenderWindow(Graphics2D g2, int x, int y, int w, int h) {
++		g2.setColor(new Color(0, 0, 0, 110));
++		g2.fillRect(x + 8, y + 8, w, h);
++
++		g2.setColor(new Color(242, 244, 248));
++		g2.fillRect(x, y, w, h);
++
++		// Title bar
++		g2.setColor(new Color(16, 42, 86));
++		g2.fillRect(x, y, w, 38);
++		drawMicrosoftLogo(g2, x + 12, y + 9, 18);
++		g2.setColor(Color.WHITE);
++		g2.setFont(new Font("SansSerif", Font.BOLD, 14));
++		g2.drawString("Cursedows Defender \u30BB\u30AD\u30E5\u30EA\u30C6\u30A3 \u30BB\u30F3\u30BF\u30FC", x + 38, y + 24);
++
++		// Red X button
++		g2.setColor(new Color(215, 35, 35));
++		g2.fillRect(x + w - 46, y, 46, 38);
++		g2.setColor(Color.WHITE);
++		g2.drawString("X", x + w - 27, y + 24);
++
++		// Threat scan table area
++		g2.setColor(new Color(185, 20, 20));
++		g2.setFont(new Font("SansSerif", Font.BOLD, 22));
++		g2.drawString("\u8105\u5A01\u304C\u691C\u51FA\u3055\u308C\u307E\u3057\u305F: Trojan:Win32/DeathRoulette.A!ml", x + 26, y + 80);
++
++		g2.setColor(new Color(30, 30, 30));
++		g2.setFont(new Font("Monospaced", Font.PLAIN, 13));
++		for(int i = 0; i < SCAN_FILES.length; ++i) {
++			int idx = (i + (this.tick / 6)) % SCAN_FILES.length;
++			g2.drawString(SCAN_FILES[idx], x + 28, y + 120 + i * 24);
++		}
++	}
++
++	private void drawMainScamAlertWindow(Graphics2D g2, int x, int y, int w, int h) {
++		g2.setColor(new Color(0, 0, 0, 140));
++		g2.fillRect(x + 10, y + 10, w, h);
++
++		g2.setColor(new Color(18, 22, 30));
++		g2.fillRect(x, y, w, h);
++		g2.setColor(new Color(220, 35, 35));
++		g2.setStroke(new BasicStroke(3.0F));
++		g2.drawRect(x, y, w, h);
++
++		// Header bar
++		g2.setColor(new Color(195, 20, 20));
++		g2.fillRect(x, y, w, 48);
++		drawMicrosoftLogo(g2, x + 16, y + 13, 22);
++		g2.setColor(Color.WHITE);
++		g2.setFont(new Font("SansSerif", Font.BOLD, 18));
++		g2.drawString("Micrasoft Cursedows \u30BB\u30AD\u30E5\u30EA\u30C6\u30A3\u8B66\u544A - \u30A8\u30E9\u30FC #DW-0x80072EE7", x + 48, y + 31);
++
++		// Body warning messages
++		g2.setFont(new Font("SansSerif", Font.BOLD, 21));
++		g2.setColor(new Color(255, 90, 90));
++		g2.drawString("\u26A0 \u304A\u4F7F\u3044\u306E\u30B3\u30F3\u30D4\u30E5\u30FC\u30BF\u3078\u306E\u30A2\u30AF\u30BB\u30B9\u304C\u30D6\u30ED\u30C3\u30AF\u3055\u308C\u307E\u3057\u305F", x + 32, y + 95);
++
++		g2.setFont(new Font("SansSerif", Font.PLAIN, 15));
++		g2.setColor(new Color(235, 235, 240));
++		g2.drawString("\u4E0D\u5BE9\u306A\u30A2\u30AF\u30C6\u30A3\u30D3\u30C6\u30A3\u3068\u30C8\u30ED\u30A4\u306E\u6728\u99AC\u304C\u691C\u51FA\u3055\u308C\u305F\u305F\u3081\u3001\u30B7\u30B9\u30C6\u30E0\u3092\u4FDD\u8B77\u4E2D\u3067\u3059\u3002", x + 32, y + 132);
++		g2.setColor(new Color(255, 215, 90));
++		g2.drawString("\u203B \u3053\u306E\u30A6\u30A3\u30F3\u30C9\u30A6\u3092\u9589\u3058\u305F\u308A\u518D\u8D77\u52D5\u3057\u306A\u3044\u3067\u304F\u3060\u3055\u3044\u3002\u30BB\u30FC\u30D6\u30C7\u30FC\u30BF\u304C\u6D88\u5931\u3057\u307E\u3059\u3002", x + 32, y + 160);
++
++		// Progress bar
++		int barX = x + 32;
++		int barY = y + 365;
++		int barW = w - 64;
++		int barH = 26;
++		g2.setColor(new Color(45, 50, 62));
++		g2.fillRect(barX, barY, barW, barH);
++		int progress = (this.tick * 7) % (barW + 1);
++		g2.setColor(new Color(220, 35, 35));
++		g2.fillRect(barX, barY, progress, barH);
++		g2.setColor(Color.WHITE);
++		g2.setFont(new Font("Monospaced", Font.BOLD, 13));
++		int pct = Math.min(99, (progress * 100) / Math.max(1, barW));
++		g2.drawString("QUARANTINE SCAN IN PROGRESS... " + pct + "% (THREATS FOUND: 31)", barX + 14, barY + 18);
++
++		// Support phone footer banner
++		g2.setColor(new Color(0, 114, 198));
++		g2.fillRect(x + 32, y + 415, w - 64, 68);
++		g2.setColor(Color.WHITE);
++		g2.setFont(new Font("SansSerif", Font.BOLD, 22));
++		g2.drawString("\u260E Micrasoft \u7DCA\u6025\u30B5\u30DD\u30FC\u30C8\u7A93\u53E3: 0X0X-8XX-6XX-DEAD", x + 52, y + 457);
++	}
++
++	private void drawCenterModalPopup(Graphics2D g2, int x, int y, int w, int h) {
++		g2.setColor(new Color(0, 0, 0, 150));
++		g2.fillRect(x + 8, y + 8, w, h);
++
++		g2.setColor(Color.WHITE);
++		g2.fillRect(x, y, w, h);
++		g2.setColor(new Color(0, 103, 184));
++		g2.setStroke(new BasicStroke(2.2F));
++		g2.drawRect(x, y, w, h);
++
++		g2.setColor(new Color(0, 103, 184));
++		g2.fillRect(x, y, w, 36);
++		g2.setColor(Color.WHITE);
++		g2.setFont(new Font("SansSerif", Font.BOLD, 14));
++		g2.drawString("Cursedows \u30BB\u30AD\u30E5\u30EA\u30C6\u30A3\u306E\u91CD\u8981\u306A\u8B66\u544A", x + 14, y + 23);
++
++		g2.setColor(new Color(30, 30, 30));
++		g2.setFont(new Font("SansSerif", Font.BOLD, 15));
++		g2.drawString("\u30D5\u30A1\u30A4\u30A2\u30A6\u30A9\u30FC\u30EB\u304C\u4E0D\u6B63\u306A\u30EA\u30E2\u30FC\u30C8\u63A5\u7D9A\u3092\u691C\u77E5\u3057\u307E\u3057\u305F\u3002", x + 22, y + 74);
++		g2.setFont(new Font("SansSerif", Font.PLAIN, 13));
++		g2.drawString("\u4ECA\u3059\u3050\u30BB\u30AD\u30E5\u30EA\u30C6\u30A3\u4FDD\u8B77\u3092\u6709\u52B9\u5316\u3057\u3066\u8105\u5A01\u3092\u9694\u96E2\u3057\u3066\u304F\u3060\u3055\u3044\u3002", x + 22, y + 102);
++		g2.drawString("Error Code: 0x80070422 (Defender Service Terminated)", x + 22, y + 128);
++
++		// Checkbox line
++		g2.drawRect(x + 22, y + 148, 13, 13);
++		g2.drawLine(x + 24, y + 154, x + 28, y + 159);
++		g2.drawLine(x + 28, y + 159, x + 34, y + 149);
++		g2.drawString("\u3053\u306E\u30DA\u30FC\u30B8\u304C\u8FFD\u52A0\u306E\u30C0\u30A4\u30A2\u30ED\u30B0\u3092\u4F5C\u6210\u3057\u306A\u3044\u3088\u3046\u306B\u3059\u308B", x + 42, y + 160);
++
++		// Buttons
++		g2.setColor(new Color(0, 103, 184));
++		g2.fillRect(x + w - 220, y + h - 48, 96, 32);
++		g2.setColor(Color.WHITE);
++		g2.setFont(new Font("SansSerif", Font.BOLD, 13));
++		g2.drawString("OK", x + w - 182, y + h - 27);
++
++		g2.setColor(new Color(230, 230, 230));
++		g2.fillRect(x + w - 112, y + h - 48, 96, 32);
++		g2.setColor(new Color(80, 80, 80));
++		g2.drawRect(x + w - 112, y + h - 48, 96, 32);
++		g2.drawString("\u30AD\u30E3\u30F3\u30BB\u30EB", x + w - 96, y + h - 27);
++	}
++
++	private void drawMicrosoftLogo(Graphics2D g2, int x, int y, int size) {
++		int half = (size - 2) / 2;
++		g2.setColor(new Color(242, 80, 34));
++		g2.fillRect(x, y, half, half);
++		g2.setColor(new Color(127, 186, 0));
++		g2.fillRect(x + half + 2, y, half, half);
++		g2.setColor(new Color(0, 164, 239));
++		g2.fillRect(x, y + half + 2, half, half);
++		g2.setColor(new Color(255, 185, 0));
++		g2.fillRect(x + half + 2, y + half + 2, half, half);
++	}
++
++	private void drawFakeCursor(Graphics2D g2, int x, int y, float alpha) {
++		Graphics2D cg = (Graphics2D)g2.create();
++		cg.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.max(0.0F, Math.min(1.0F, alpha))));
++
++		Polygon poly = new Polygon();
++		poly.addPoint(x, y);
++		poly.addPoint(x, y + 21);
++		poly.addPoint(x + 5, y + 16);
++		poly.addPoint(x + 9, y + 25);
++		poly.addPoint(x + 12, y + 23);
++		poly.addPoint(x + 8, y + 15);
++		poly.addPoint(x + 15, y + 15);
++
++		cg.setColor(new Color(0, 0, 0, 120));
++		cg.translate(2, 2);
++		cg.fillPolygon(poly);
++		cg.translate(-2, -2);
++
++		cg.setColor(Color.WHITE);
++		cg.fillPolygon(poly);
++		cg.setColor(Color.BLACK);
++		cg.setStroke(new BasicStroke(1.4F));
++		cg.drawPolygon(poly);
++		cg.dispose();
++	}
++
++	public static void main(String[] args) {
++		showWarning();
++	}
++}

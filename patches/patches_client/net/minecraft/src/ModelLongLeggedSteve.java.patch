@@ -1,0 +1,118 @@
+--- /dev/null
++++ b/net/minecraft/src/ModelLongLeggedSteve.java
+@@ -1,0 +1,115 @@
++// Made with Blockbench 5.0.7
++// Exported for Minecraft version 1.5.2
++// Paste this class into your mod and call render() in your Entity Render class
++// Note: You may need to adjust the y values of the 'setRotationPoint's
++
++package net.minecraft.src;
++
++public class ModelLongLeggedSteve extends ModelBase {
++	private final ModelRenderer bipedHead;
++	private final ModelRenderer bipedBody;
++	private final ModelRenderer bipedRightArm;
++	private final ModelRenderer bipedLeftArm;
++	private final ModelRenderer bipedRightLeg;
++	private final ModelRenderer bipedLeftLeg;
++
++	public ModelLongLeggedSteve() {
++		textureWidth = 64;
++		textureHeight = 64;
++
++		bipedHead = new ModelRenderer(this);
++		bipedHead.setRotationPoint(0.0F, -32.0F, 0.0F);
++		this.bipedHead.setTextureOffset(0, 0).addBox(-4.0F, -8.0F, -4.0F, 8, 8, 8, 0.0F);
++
++		bipedBody = new ModelRenderer(this);
++		bipedBody.setRotationPoint(0.0F, -26.0F, 0.0F);
++		this.bipedBody.setTextureOffset(16, 16).addBox(-4.0F, -6.0F, -2.0F, 8, 12, 4, 0.0F);
++
++		bipedRightArm = new ModelRenderer(this);
++		bipedRightArm.setRotationPoint(-6.0F, -30.0F, 0.0F);
++		this.bipedRightArm.setTextureOffset(40, 16).addBox(-2.0F, -2.0F, -2.0F, 4, 20, 4, 0.0F);
++
++		bipedLeftArm = new ModelRenderer(this);
++		bipedLeftArm.setRotationPoint(6.0F, -30.0F, 0.0F);
++		this.bipedLeftArm.setTextureOffset(40, 16).addBox(-2.0F, -2.0F, -2.0F, 4, 20, 4, 0.0F);
++
++		bipedRightLeg = new ModelRenderer(this);
++		bipedRightLeg.setRotationPoint(-2.0F, -20.0F, 0.0F);
++		this.bipedRightLeg.setTextureOffset(0, 16).addBox(-2.0F, 0.0F, -2.0F, 4, 44, 4, 0.0F);
++
++		bipedLeftLeg = new ModelRenderer(this);
++		bipedLeftLeg.setRotationPoint(2.0F, -20.0F, 0.0F);
++		this.bipedLeftLeg.setTextureOffset(0, 16).addBox(-2.0F, 0.0F, -2.0F, 4, 44, 4, 0.0F);
++	}
++
++	/**
++	* Sets the models various rotation angles then renders the model.
++	*/
++	@Override
++	public void render(Entity entity, float f, float f1, float f2, float f3, float f4, float f5) {
++		this.setRotationAngles(f, f1, f2, f3, f4, f5);
++		bipedHead.render(f5);
++		bipedBody.render(f5);
++		bipedRightArm.render(f5);
++		bipedLeftArm.render(f5);
++		bipedRightLeg.render(f5);
++		bipedLeftLeg.render(f5);
++	}
++
++	/**
++	* Sets the model's various rotation angles. For bipeds, f and f1 are used for animating the movement of arms
++	* and legs, where f represents the time(so that arms and legs swing back and forth) and f1 represents how
++	* "far" arms and legs can swing at most.
++	*/
++
++	public void setRotationAngles(float f1, float f2, float f3, float f4, float f5, float f6) {
++		this.bipedHead.rotateAngleY = f4 / 57.295776F;
++		this.bipedHead.rotateAngleX = f5 / 57.295776F;
++		this.bipedRightArm.rotateAngleX = MathHelper.cos(f1 * 0.6662F + (float)Math.PI) * 2.0F * f2 * 0.5F;
++		this.bipedLeftArm.rotateAngleX = MathHelper.cos(f1 * 0.6662F) * 2.0F * f2 * 0.5F;
++		this.bipedRightArm.rotateAngleZ = 0.0F;
++		this.bipedLeftArm.rotateAngleZ = 0.0F;
++		this.bipedRightLeg.rotateAngleX = MathHelper.cos(f1 * 0.6662F) * 1.4F * f2;
++		this.bipedLeftLeg.rotateAngleX = MathHelper.cos(f1 * 0.6662F + (float)Math.PI) * 1.4F * f2;
++		this.bipedRightLeg.rotateAngleY = 0.0F;
++		this.bipedLeftLeg.rotateAngleY = 0.0F;
++		if(this.isRiding) {
++			this.bipedRightArm.rotateAngleX += -0.62831855F;
++			this.bipedLeftArm.rotateAngleX += -0.62831855F;
++			this.bipedRightLeg.rotateAngleX = -1.2566371F;
++			this.bipedLeftLeg.rotateAngleX = -1.2566371F;
++			this.bipedRightLeg.rotateAngleY = 0.31415927F;
++			this.bipedLeftLeg.rotateAngleY = -0.31415927F;
++		}
++
++		this.bipedRightArm.rotateAngleY = 0.0F;
++		this.bipedLeftArm.rotateAngleY = 0.0F;
++		float f7;
++		float f8;
++		if(this.onGround > -9990.0F) {
++			f7 = this.onGround;
++			this.bipedBody.rotateAngleY = MathHelper.sin(MathHelper.sqrt_float(f7) * (float)Math.PI * 2.0F) * 0.2F;
++			this.bipedRightArm.rotationPointZ = MathHelper.sin(this.bipedBody.rotateAngleY) * 5.0F;
++			this.bipedRightArm.rotationPointX = -MathHelper.cos(this.bipedBody.rotateAngleY) * 5.0F;
++			this.bipedLeftArm.rotationPointZ = -MathHelper.sin(this.bipedBody.rotateAngleY) * 5.0F;
++			this.bipedLeftArm.rotationPointX = MathHelper.cos(this.bipedBody.rotateAngleY) * 5.0F;
++			this.bipedRightArm.rotateAngleY += this.bipedBody.rotateAngleY;
++			this.bipedLeftArm.rotateAngleY += this.bipedBody.rotateAngleY;
++			this.bipedLeftArm.rotateAngleX += this.bipedBody.rotateAngleY;
++			f7 = 1.0F - this.onGround;
++			f7 *= f7;
++			f7 *= f7;
++			f7 = 1.0F - f7;
++			f8 = MathHelper.sin(f7 * (float)Math.PI);
++			float f9 = MathHelper.sin(this.onGround * (float)Math.PI) * -(this.bipedHead.rotateAngleX - 0.7F) * 0.75F;
++			this.bipedRightArm.rotateAngleX = (float)((double)this.bipedRightArm.rotateAngleX - ((double)f8 * 1.2D + (double)f9));
++			this.bipedRightArm.rotateAngleY += this.bipedBody.rotateAngleY * 2.0F;
++			this.bipedRightArm.rotateAngleZ = MathHelper.sin(this.onGround * (float)Math.PI) * -0.4F;
++		}
++
++		this.bipedRightArm.rotateAngleZ += MathHelper.cos(f3 * 0.09F) * 0.05F + 0.05F;
++		this.bipedLeftArm.rotateAngleZ -= MathHelper.cos(f3 * 0.09F) * 0.05F + 0.05F;
++		this.bipedRightArm.rotateAngleX += MathHelper.sin(f3 * 0.067F) * 0.05F;
++		this.bipedLeftArm.rotateAngleX -= MathHelper.sin(f3 * 0.067F) * 0.05F;
++	}
++}

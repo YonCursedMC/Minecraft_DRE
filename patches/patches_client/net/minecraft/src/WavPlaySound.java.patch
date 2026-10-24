@@ -1,0 +1,82 @@
+--- /dev/null
++++ b/net/minecraft/src/WavPlaySound.java
+@@ -1,0 +1,79 @@
++package net.minecraft.src;
++
++import java.io.BufferedInputStream;
++import java.io.IOException;
++import java.io.InputStream;
++import java.util.ArrayList;
++import java.util.Iterator;
++import java.util.List;
++import javax.sound.sampled.*;
++
++public class WavPlaySound {
++	private static final List<Clip> activeClips = new ArrayList<Clip>();
++
++	public static void playsound(String resourcePath) {
++		playsound(resourcePath, false);
++	}
++
++	public static void playsoundLoop(String resourcePath) {
++		playsound(resourcePath, true);
++	}
++
++	public static void playsound(String resourcePath, boolean loop) {
++		new Thread(()->{
++			try(InputStream rawStream = WavPlaySound.class.getResourceAsStream(resourcePath)) {
++				if(rawStream == null) {
++					System.err.println("Non Resource: " + resourcePath); return;
++				}
++
++				try(BufferedInputStream bufferedStream = new BufferedInputStream(rawStream); AudioInputStream audioInputStream = AudioSystem.getAudioInputStream(bufferedStream)) {
++
++					Clip clip = AudioSystem.getClip();
++					clip.open(audioInputStream);
++					synchronized(activeClips) {
++						activeClips.add(clip);
++					}
++
++					if(loop) {
++						clip.loop(Clip.LOOP_CONTINUOUSLY);
++					} else {
++						clip.start();
++					}
++
++					clip.addLineListener(event->{
++						if(event.getType() == LineEvent.Type.STOP) {
++							synchronized(activeClips) {
++								activeClips.remove(clip);
++							}
++							clip.close();
++						}
++					});
++
++					while(clip.isOpen() && clip.isRunning()) {
++						Thread.sleep(100);
++					}
++				}
++
++			} catch (UnsupportedAudioFileException | IOException | LineUnavailableException e) {
++				e.printStackTrace();
++			} catch (InterruptedException e) {
++				Thread.currentThread().interrupt();
++			}
++		}).start();
++	}
++
++	public static void stopAll() {
++		synchronized(activeClips) {
++			Iterator<Clip> it = activeClips.iterator();
++			while(it.hasNext()) {
++				Clip clip = it.next();
++				it.remove();
++				try {
++					clip.stop();
++					clip.close();
++				} catch (Throwable ignored) {
++				}
++			}
++		}
++	}
++}

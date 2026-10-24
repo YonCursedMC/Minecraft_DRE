@@ -1,0 +1,149 @@
+--- /dev/null
++++ b/net/minecraft/src/ClientEvents.java
+@@ -1,0 +1,146 @@
++package net.minecraft.src;
++
++import java.io.ByteArrayOutputStream;
++import java.io.DataOutputStream;
++import java.io.IOException;
++import java.util.List;
++import net.minecraft.server.MinecraftServer;
++
++/**
++ * Helper class for sending a Packet250CustomPayload from the server to a specific player (or all players)
++ * so that the corresponding method in ClientEvents is executed ONLY on the receiving client.
++ *
++ * Usage on Server / DeathRouletteEvents:
++ *   ClientEvents.event14(player);                      // Runs ClientEvents.event14(mc) once on client
++ *   ClientEvents.startTimerSeconds(player, 16, 10);    // Runs ClientEvents.tickEvent16(mc) every tick for 10s on client
++ *   ClientEvents.startTimerTicks(player, 16, 200);     // Runs ClientEvents.tickEvent16(mc) every tick for 200 ticks on client
++ */
++public class ClientEvents {
++	public static final String CHANNEL = "DRE|Client";
++
++	private static final byte MODE_ONCE = 0;
++	private static final byte MODE_TIMER_TICKS = 1;
++	private static final byte MODE_STOP_TIMER = 2;
++
++	// =====================================================================
++	// Server -> Client Packet Senders
++	// =====================================================================
++
++	public static void send(EntityPlayerMP player, int eventId) {
++		send(player, eventId, 0, "");
++	}
++
++	public static void send(EntityPlayerMP player, int eventId, int intArg) {
++		send(player, eventId, intArg, "");
++	}
++
++	public static void send(EntityPlayerMP player, int eventId, String strArg) {
++		send(player, eventId, 0, strArg != null ? strArg : "");
++	}
++
++	public static void send(EntityPlayerMP player, int eventId, int intArg, String strArg) {
++		sendInternal(player, MODE_ONCE, eventId, intArg, strArg);
++	}
++
++	public static void startTimerSeconds(EntityPlayerMP player, int eventId, double seconds) {
++		int ticks = (int)Math.round(seconds * 20.0D);
++		startTimerTicks(player, eventId, ticks);
++	}
++
++	public static void startTimerTicks(EntityPlayerMP player, int eventId, int ticks) {
++		sendInternal(player, MODE_TIMER_TICKS, eventId, ticks, "");
++	}
++
++	public static void stopTimer(EntityPlayerMP player, int eventId) {
++		sendInternal(player, MODE_STOP_TIMER, eventId, 0, "");
++	}
++
++	private static void sendInternal(EntityPlayerMP player, byte mode, int eventId, int intArg, String strArg) {
++		if(player == null || player.playerNetServerHandler == null) {
++			return;
++		}
++		try {
++			ByteArrayOutputStream bos = new ByteArrayOutputStream();
++			DataOutputStream out = new DataOutputStream(bos);
++			out.writeByte(mode);
++			out.writeInt(eventId);
++			out.writeInt(intArg);
++			out.writeUTF(strArg != null ? strArg : "");
++			Packet250CustomPayload packet = new Packet250CustomPayload(CHANNEL, bos.toByteArray());
++			player.playerNetServerHandler.b(packet);
++		} catch (IOException e) {
++			e.printStackTrace();
++		}
++	}
++
++	public static void sendToAll(MinecraftServer server, int eventId) {
++		sendToAll(server, eventId, 0, "");
++	}
++
++	public static void sendToAll(MinecraftServer server, int eventId, int intArg, String strArg) {
++		if(server == null || server.getConfigurationManager() == null) {
++			return;
++		}
++		List players = server.getConfigurationManager().playerEntityList;
++		if(players == null) {
++			return;
++		}
++		for(int i = 0; i < players.size(); ++i) {
++			EntityPlayerMP player = (EntityPlayerMP)players.get(i);
++			send(player, eventId, intArg, strArg);
++		}
++	}
++
++	public static void startTimerSecondsToAll(MinecraftServer server, int eventId, double seconds) {
++		if(server == null || server.getConfigurationManager() == null) {
++			return;
++		}
++		List players = server.getConfigurationManager().playerEntityList;
++		if(players == null) {
++			return;
++		}
++		for(int i = 0; i < players.size(); ++i) {
++			EntityPlayerMP player = (EntityPlayerMP)players.get(i);
++			startTimerSeconds(player, eventId, seconds);
++		}
++	}
++
++	// =====================================================================
++	// Shorthand Server -> Client Triggers (event0 ~ event30)
++	// Call ClientEvents.eventX(player) on the server to run eventX(mc) on the client!
++	// =====================================================================
++
++	public static void event0(EntityPlayerMP player) { send(player, 0); }
++	public static void event1(EntityPlayerMP player) { send(player, 1); }
++	public static void event2(EntityPlayerMP player) { send(player, 2); }
++	public static void event3(EntityPlayerMP player) { send(player, 3); }
++	public static void event4(EntityPlayerMP player) { send(player, 4); }
++	public static void event5(EntityPlayerMP player) { send(player, 5); }
++	public static void event6(EntityPlayerMP player) { send(player, 6); }
++	public static void event7(EntityPlayerMP player) { send(player, 7); }
++	public static void event8(EntityPlayerMP player) { send(player, 8); }
++	public static void event9(EntityPlayerMP player) { send(player, 9); }
++	public static void event10(EntityPlayerMP player) { send(player, 10); }
++	public static void event11(EntityPlayerMP player) { send(player, 11); }
++	public static void event12(EntityPlayerMP player) { send(player, 12); }
++	public static void event13(EntityPlayerMP player) { send(player, 13); }
++	public static void event14(EntityPlayerMP player) { send(player, 14); }
++	public static void event15(EntityPlayerMP player) { send(player, 15); }
++	public static void event16(EntityPlayerMP player) { send(player, 16); }
++	public static void event17(EntityPlayerMP player) { send(player, 17); }
++	public static void event18(EntityPlayerMP player) { send(player, 18); }
++	public static void event19(EntityPlayerMP player) { send(player, 19); }
++	public static void event20(EntityPlayerMP player) { send(player, 20); }
++	public static void event21(EntityPlayerMP player) { send(player, 21); }
++	public static void event22(EntityPlayerMP player) { send(player, 22); }
++	public static void event23(EntityPlayerMP player) { send(player, 23); }
++	public static void event24(EntityPlayerMP player) { send(player, 24); }
++	public static void event25(EntityPlayerMP player) { send(player, 25); }
++	public static void event26(EntityPlayerMP player) { send(player, 26); }
++	public static void event27(EntityPlayerMP player) { send(player, 27); }
++	public static void event28(EntityPlayerMP player) { send(player, 28); }
++	public static void event29(EntityPlayerMP player) { send(player, 29); }
++	public static void event30(EntityPlayerMP player) { send(player, 30); }
++	public static void event31(EntityPlayerMP player) { send(player, 31); }
++	public static void event32(EntityPlayerMP player) { send(player, 32); }
++}

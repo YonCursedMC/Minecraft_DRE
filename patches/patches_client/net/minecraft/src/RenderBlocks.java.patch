@@ -1,0 +1,30 @@
+--- a/net/minecraft/src/RenderBlocks.java
++++ b/net/minecraft/src/RenderBlocks.java
+@@ -2994,11 +2994,13 @@
+ 		this.aoGrassXYZCNP = Block.canBlockGrass[this.blockAccess.getBlockId(i2, i3 - 1, i4 + 1)];
+ 		this.aoGrassXYZCNN = Block.canBlockGrass[this.blockAccess.getBlockId(i2, i3 - 1, i4 - 1)];
+ 		if(block1.blockIndexInTexture == 3) {
+-			z18 = false;
+-			z17 = false;
+-			z16 = false;
+-			z15 = false;
+-			z13 = false;
++			if(!(this.blockAccess.getBiomeGenForCoords(i2, i4) instanceof BiomeGenDimension)) {
++				z18 = false;
++				z17 = false;
++				z16 = false;
++				z15 = false;
++				z13 = false;
++			}
+ 		}
+ 
+ 		if(this.overrideBlockTexture >= 0) {
+@@ -3628,7 +3630,7 @@
+ 		float f23 = f10;
+ 		float f24 = f12;
+ 		float f25 = f13;
+-		if(block1 != Block.grass) {
++		if(block1 != Block.grass || (this.blockAccess.getBiomeGenForCoords(i2, i4) instanceof BiomeGenDimension)) {
+ 			f17 = f10 * f5;
+ 			f18 = f12 * f5;
+ 			f19 = f13 * f5;

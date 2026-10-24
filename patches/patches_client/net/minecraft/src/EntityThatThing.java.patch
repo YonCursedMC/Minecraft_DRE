@@ -1,0 +1,37 @@
+--- /dev/null
++++ b/net/minecraft/src/EntityThatThing.java
+@@ -1,0 +1,34 @@
++package net.minecraft.src;
++
++public class EntityThatThing extends EntityMob {
++	public EntityThatThing(World world1) {
++		super(world1);
++		this.texture = "/addmob/ThatThing.png";
++		this.moveSpeed = 1.0F;
++		this.attackStrength = 1;
++		this.stepHeight = 20.0F;
++	}
++
++	public int getMaxHealth() {
++		return 20;
++	}
++
++	public void onLivingUpdate() {
++		super.onLivingUpdate();
++	}
++
++	public boolean attackEntityFrom(DamageSource damageSource1, int i2) {
++		return false;
++	}
++
++	protected void onAttackPlayerMP(EntityPlayerMP player) {
++		super.onAttackPlayerMP(player);
++		if(this.rand.nextInt(120) == 0) {
++			ClientEvents.event8(player);
++		}
++	}
++
++	public void onUpdate() {
++		super.onUpdate();
++	}
++}

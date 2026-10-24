@@ -1,0 +1,21 @@
+--- a/net/minecraft/src/Block.java
++++ b/net/minecraft/src/Block.java
+@@ -157,6 +157,7 @@
+ 	public static final Block stairsWoodSpruce = (new BlockStairs(134, planks, 1)).setBlockName("stairsWoodSpruce").setRequiresSelfNotify();
+ 	public static final Block stairsWoodBirch = (new BlockStairs(135, planks, 2)).setBlockName("stairsWoodBirch").setRequiresSelfNotify();
+ 	public static final Block stairsWoodJungle = (new BlockStairs(136, planks, 3)).setBlockName("stairsWoodJungle").setRequiresSelfNotify();
++	public static final Block none = (new Block(137, Material.rock)).setBlockName("").setRequiresSelfNotify();
+ 	public int blockIndexInTexture;
+ 	public final int blockID;
+ 	protected float blockHardness;
+@@ -575,6 +576,10 @@
+ 	}
+ 
+ 	public int colorMultiplier(IBlockAccess iBlockAccess1, int i2, int i3, int i4) {
++		BiomeGenBase biome = iBlockAccess1.getBiomeGenForCoords(i2, i4);
++		if(biome instanceof BiomeGenDimension) {
++			return ((BiomeGenDimension)biome).getTerrainColorAt(i2, i3, i4);
++		}
+ 		return 0xFFFFFF;
+ 	}
+ 

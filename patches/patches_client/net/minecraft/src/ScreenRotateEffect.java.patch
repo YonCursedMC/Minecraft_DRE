@@ -1,0 +1,164 @@
+--- /dev/null
++++ b/net/minecraft/src/ScreenRotateEffect.java
+@@ -1,0 +1,161 @@
++package net.minecraft.src;
++
++import java.awt.Color;
++import java.awt.Cursor;
++import java.awt.Dimension;
++import java.awt.Graphics;
++import java.awt.Graphics2D;
++import java.awt.Point;
++import java.awt.Rectangle;
++import java.awt.RenderingHints;
++import java.awt.Robot;
++import java.awt.Toolkit;
++import java.awt.event.ActionEvent;
++import java.awt.event.ActionListener;
++import java.awt.event.KeyAdapter;
++import java.awt.event.KeyEvent;
++import java.awt.geom.AffineTransform;
++import java.awt.image.BufferedImage;
++import javax.swing.JFrame;
++import javax.swing.JPanel;
++import javax.swing.SwingUtilities;
++import javax.swing.Timer;
++
++/**
++ * Captures the entire OS desktop and smoothly spins it clockwise
++ * 3 full rotations (1080 degrees) over 5 seconds, then closes and restores normal screen.
++ */
++public class ScreenRotateEffect extends JPanel implements ActionListener {
++	private static JFrame activeFrame = null;
++	public static int DURATION_MS = 5000; // 5 seconds
++	public static int ROTATIONS = 3;      // 3 full clockwise rotations
++
++	private final BufferedImage screenImg;
++	private final int screenW;
++	private final int screenH;
++	private final long startTimeMs;
++	private final Timer timer;
++
++	public static void startEffect() {
++		startEffect(DURATION_MS, ROTATIONS);
++	}
++
++	public static void startEffect(final int durationMs, final int rotations) {
++		SwingUtilities.invokeLater(new Runnable() {
++			public void run() {
++				closeEffect();
++				try {
++					Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
++					Rectangle screenRect = new Rectangle(0, 0, screenSize.width, screenSize.height);
++					Robot robot = new Robot();
++					BufferedImage capture = robot.createScreenCapture(screenRect);
++
++					JFrame frame = new JFrame("ScreenRotate");
++					frame.setUndecorated(true);
++					frame.setAlwaysOnTop(true);
++					frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
++					frame.setBounds(0, 0, screenSize.width, screenSize.height);
++
++					// Hide mouse cursor
++					BufferedImage blankImg = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
++					Cursor blankCursor = Toolkit.getDefaultToolkit().createCustomCursor(blankImg, new Point(0, 0), "blank");
++					frame.getContentPane().setCursor(blankCursor);
++
++					ScreenRotateEffect panel = new ScreenRotateEffect(capture, screenSize.width, screenSize.height, durationMs, rotations);
++					frame.setContentPane(panel);
++					activeFrame = frame;
++					frame.setVisible(true);
++					frame.toFront();
++					frame.requestFocus();
++				} catch (Throwable t) {
++					t.printStackTrace();
++				}
++			}
++		});
++	}
++
++	public static void closeEffect() {
++		if(activeFrame != null) {
++			try {
++				activeFrame.dispose();
++			} catch (Throwable ignored) {
++			}
++			activeFrame = null;
++		}
++	}
++
++	private ScreenRotateEffect(BufferedImage img, int w, int h, int durationMs, int rotations) {
++		this.screenImg = img;
++		this.screenW = w;
++		this.screenH = h;
++		this.startTimeMs = System.currentTimeMillis();
++		this.setBackground(Color.BLACK);
++
++		this.timer = new Timer(16, this);
++		this.timer.start();
++	}
++
++	public void actionPerformed(ActionEvent e) {
++		if(activeFrame == null || !activeFrame.isDisplayable()) {
++			this.timer.stop();
++			return;
++		}
++
++		long elapsed = System.currentTimeMillis() - this.startTimeMs;
++		if(elapsed >= DURATION_MS) {
++			this.timer.stop();
++			closeEffect();
++			return;
++		}
++
++		this.repaint();
++	}
++
++	protected void paintComponent(Graphics g) {
++		super.paintComponent(g);
++		if(this.screenImg == null) {
++			return;
++		}
++
++		Graphics2D g2 = (Graphics2D)g.create();
++		g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
++		g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
++		g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
++
++		int w = getWidth();
++		int h = getHeight();
++
++		g2.setColor(Color.BLACK);
++		g2.fillRect(0, 0, w, h);
++
++		long elapsed = System.currentTimeMillis() - this.startTimeMs;
++		double progress = Math.max(0.0D, Math.min(1.0D, (double)elapsed / (double)DURATION_MS));
++
++		// Smooth ease-in-out S-curve
++		double ease = progress < 0.5D
++				? 4.0D * progress * progress * progress
++				: 1.0D - Math.pow(-2.0D * progress + 2.0D, 3.0D) / 2.0D;
++
++		// Clockwise rotation (3 full turns = 1080 degrees = 6 * PI radians)
++		double totalAngle = ease * (Math.PI * 2.0D * (double)ROTATIONS);
++
++		// Slight scale dip during the spin to create a surreal zoom-spin depth effect
++		double scale = 1.0D - Math.sin(progress * Math.PI) * 0.18D;
++
++		double cx = (double)w * 0.5D;
++		double cy = (double)h * 0.5D;
++
++		AffineTransform transform = new AffineTransform();
++		transform.translate(cx, cy);
++		transform.rotate(totalAngle);
++		transform.scale(scale, scale);
++		transform.translate(-(double)this.screenW * 0.5D, -(double)this.screenH * 0.5D);
++
++		g2.drawImage(this.screenImg, transform, null);
++		g2.dispose();
++	}
++
++	public static void main(String[] args) {
++		startEffect();
++	}
++}

@@ -1,0 +1,17 @@
+--- a/net/minecraft/src/EntityList.java
++++ b/net/minecraft/src/EntityList.java
+@@ -138,5 +138,14 @@
+ 		addMapping(EntityIronGolem.class, "VillagerGolem", 99);
+ 		addMapping(EntityVillager.class, "Villager", 120, 5651507, 12422002);
+ 		addMapping(EntityEnderCrystal.class, "EnderCrystal", 200);
++		addMapping(EntityPublicVoid.class, "PublicVoid", 100);
++		addMapping(EntityRomanesco.class, "Romanesco", 101);
++		addMapping(EntityZimber.class, "Zimber", 102);
++		addMapping(EntityHerobrine.class, "Herobrine", 103);
++		addMapping(EntityLongLeggedSteve.class, "LongLeggedSteve", 104);
++		addMapping(EntityLongFix.class, "LongFix", 105);
++		addMapping(EntityThatThing.class, "ThatThing", 106);
++		addMapping(EntityLongLeggedSteveS.class, "LongLeggedSteveS", 107);
++		addMapping(EntityLongFixS.class, "LongFixS", 108);
+ 	}
+ }

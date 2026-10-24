@@ -1,0 +1,135 @@
+--- a/net/minecraft/server/MinecraftServer.java
++++ b/net/minecraft/server/MinecraftServer.java
+@@ -13,6 +13,8 @@
+ import java.util.logging.Logger;
+ 
+ import net.minecraft.src.AnvilSaveConverter;
++import net.minecraft.src.BiomeGenDimension;
++import net.minecraft.src.DeathRouletteDimensionManager;
+ import net.minecraft.src.AxisAlignedBB;
+ import net.minecraft.src.CallableIsServerModded;
+ import net.minecraft.src.CallableServerMemoryStats;
+@@ -21,6 +23,7 @@
+ import net.minecraft.src.CommandBase;
+ import net.minecraft.src.ConvertingProgressUpdate;
+ import net.minecraft.src.CrashReport;
++import net.minecraft.src.DeathRouletteServerManager;
+ import net.minecraft.src.DemoWorldServer;
+ import net.minecraft.src.EnumGameType;
+ import net.minecraft.src.ICommandManager;
+@@ -129,7 +132,8 @@
+ 	protected void loadAllWorlds(String string1, String string2, long j3, WorldType worldType5) {
+ 		this.convertMapIfNeeded(string1);
+ 		this.setUserMessage("menu.loadingLevel");
+-		this.worldServers = new WorldServer[3];
++		BiomeGenDimension.init();
++		this.worldServers = new WorldServer[9];
+ 		this.timeOfLastDimensionTick = new long[this.worldServers.length][100];
+ 		ISaveHandler iSaveHandler6 = this.anvilConverterForAnvilFile.getSaveLoader(string1, true);
+ 		WorldInfo worldInfo8 = iSaveHandler6.loadWorldInfo();
+@@ -154,6 +158,10 @@
+ 				b10 = 1;
+ 			}
+ 
++			if(i9 >= 3) {
++				b10 = (byte)(24 + (i9 - 3));
++			}
++
+ 			if(i9 == 0) {
+ 				if(this.isDemo()) {
+ 					this.worldServers[i9] = new DemoWorldServer(this, iSaveHandler6, string2, b10, this.theProfiler);
+@@ -424,39 +432,48 @@
+ 	public void updateTimeLightAndEntities() {
+ 		this.theProfiler.startSection("levels");
+ 
+-		for(int i1 = 0; i1 < this.worldServers.length; ++i1) {
+-			long j2 = System.nanoTime();
+-			if(i1 == 0 || this.getAllowNether()) {
++		if(!DeathRouletteServerManager.isTickFrozen()) {
++			for(int i1 = 0; i1 < this.worldServers.length; ++i1) {
++				long j2 = System.nanoTime();
+ 				WorldServer worldServer4 = this.worldServers[i1];
+-				this.theProfiler.startSection(worldServer4.getWorldInfo().getWorldName());
+-				if(this.tickCounter % 20 == 0) {
+-					this.theProfiler.startSection("timeSync");
+-					this.serverConfigManager.sendPacketToAllPlayersInDimension(new Packet4UpdateTime(worldServer4.getTotalWorldTime()), worldServer4.provider.dimensionId);
+-					this.theProfiler.endSection();
+-				}
+-
+-				this.theProfiler.startSection("tick");
+-				worldServer4.tick();
+-				this.theProfiler.endStartSection("lights");
+-
+-				while(true) {
+-					if(!worldServer4.updatingLighting()) {
+-						this.theProfiler.endSection();
+-						worldServer4.updateEntities();
+-						this.theProfiler.startSection("tracker");
+-						worldServer4.getEntityTracker().updateTrackedEntities();
+-						this.theProfiler.endSection();
+-						this.theProfiler.endSection();
+-						break;
+-					}
+-				}
++				if(i1 >= 3 && (worldServer4 == null || worldServer4.playerEntities.isEmpty())) {
++					continue;
++				}
++				if(i1 == 0 || this.getAllowNether()) {
++					this.theProfiler.startSection(worldServer4.getWorldInfo().getWorldName());
++					if(this.tickCounter % 20 == 0) {
++						this.theProfiler.startSection("timeSync");
++						this.serverConfigManager.sendPacketToAllPlayersInDimension(new Packet4UpdateTime(worldServer4.getTotalWorldTime()), worldServer4.provider.dimensionId);
++						this.theProfiler.endSection();
++					}
++
++					this.theProfiler.startSection("tick");
++					worldServer4.tick();
++					if(i1 >= 3) {
++						DeathRouletteDimensionManager.tickCustomDimensionWorld(worldServer4);
++					}
++					this.theProfiler.endStartSection("lights");
++
++					while(true) {
++						if(!worldServer4.updatingLighting()) {
++							this.theProfiler.endSection();
++							worldServer4.updateEntities();
++							this.theProfiler.startSection("tracker");
++							worldServer4.getEntityTracker().updateTrackedEntities();
++							this.theProfiler.endSection();
++							this.theProfiler.endSection();
++							break;
++						}
++					}
++				}
++
++				this.timeOfLastDimensionTick[i1][this.tickCounter % 100] = System.nanoTime() - j2;
+ 			}
+-
+-			this.timeOfLastDimensionTick[i1][this.tickCounter % 100] = System.nanoTime() - j2;
+ 		}
+ 
+ 		this.theProfiler.endStartSection("connection");
+ 		this.getNetworkThread().networkTick();
++		DeathRouletteServerManager.onServerTick(this);
+ 		this.theProfiler.endStartSection("players");
+ 		this.serverConfigManager.sendPlayerInfoToAllPlayers();
+ 		this.theProfiler.endStartSection("tickables");
+@@ -491,6 +508,9 @@
+ 	}
+ 
+ 	public WorldServer worldServerForDimension(int i1) {
++		if(i1 >= 24 && i1 <= 29) {
++			return this.worldServers[3 + (i1 - 24)];
++		}
+ 		return i1 == -1 ? this.worldServers[1] : (i1 == 1 ? this.worldServers[2] : this.worldServers[0]);
+ 	}
+ 
+@@ -507,7 +527,7 @@
+ 	}
+ 
+ 	public String getMinecraftVersion() {
+-		return "1.3.2";
++		return "DRE";
+ 	}
+ 
+ 	public int getCurrentPlayerCount() {

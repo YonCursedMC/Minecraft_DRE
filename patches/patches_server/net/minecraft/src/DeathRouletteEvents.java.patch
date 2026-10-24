@@ -1,0 +1,578 @@
+--- /dev/null
++++ b/net/minecraft/src/DeathRouletteEvents.java
+@@ -1,0 +1,575 @@
++package net.minecraft.src;
++
++import java.util.ArrayList;
++import java.util.Iterator;
++import java.util.List;
++import java.util.Random;
++import net.minecraft.server.MinecraftServer;
++
++public class DeathRouletteEvents {
++	// Interval in ticks (20 ticks = 1 sec, 3600 ticks = 3 minutes)
++	public static int INTERVAL_TICKS = 3 * 60 * 20;
++
++	// Probability of Roulette vs Amidakuji (0.0 ~ 1.0)
++	// 0.5 = 50% Roulette / 50% Amidakuji, 1.0 = Always Roulette, 0.0 = Always Amidakuji
++	public static double ROULETTE_PROBABILITY = 0.5D;
++
++	// Total event count (event0 ~ event30 = 31 events)
++	public static final int EVENT_COUNT = 31;
++
++	// =====================================================================
++	// Display names on the GUI for each event (event0 ~ event30)
++	// =====================================================================
++	public static final String[] EVENT_NAMES = new String[] {
++		"Nothing",  // event0
++		"Type-A",  // event1
++		"Type-C",  // event2
++		"PublicVoid",  // event3
++		"Romanesco & The Stalker",  // event4
++		"Herobrine",  // event5
++		"LongLeggedSteve",  // event6
++		"LongFix",  // event7
++		"Vllr",  // event8
++		"Holl",  // event9
++		"Exp", // event10
++		"AllItem", // event11
++		"Crash", // event12
++		"MOMO", // event13
++		"Mouse", // event14
++		"Error", // event15
++		"Rotate", // event16
++		"Beksinski", // event17
++		"Up", // event18
++		"Yes", // event19
++		"Japan", // event20
++		"Si", // event21
++		"BSoD", // event22
++		"FakeBSoD", // event23
++		"Public Void Lab", // event24
++		"Romanesco Farm", // event25
++		"Herobrine World", // event26
++		"LongLeggedSteve Finish", // event27
++		"LongFix Finish", // event28
++		"Vllr Village", // event29
++		"ServerCrash", // event30
++	};
++
++	// =====================================================================
++	// Probability weights for Roulette (event0 ~ event30)
++	// Higher value = more likely to be chosen, 0.0D = never chosen
++	// =====================================================================
++	public static final double[] ROULETTE_WEIGHTS = new double[] {
++		4.0D, // event0
++		1.0D, // event1
++		1.0D, // event2
++		1.0D, // event3
++		1.0D, // event4
++		2.0D, // event5
++		0.5D, // event6
++		0.5D, // event7
++		0.5D, // event8
++		1.0D, // event9
++		1.0D, // event10
++		1.0D, // event11
++		0.2D, // event12
++		0.5D, // event13
++		1.0D, // event14
++		1.0D, // event15
++		1.0D, // event16
++		1.0D, // event17
++		1.0D, // event18
++		1.0D, // event19
++		1.0D, // event20
++		1.0D, // event21
++		0.05D, // event22
++		0.5D, // event23
++		0.75D, // event24
++		0.75D, // event25
++		0.75D, // event26
++		0.75D, // event27
++		0.75D, // event28
++		0.75D, // event29
++		0.05D, // event30
++	};
++
++	// =====================================================================
++	// Probability weights for Amidakuji (event0 ~ event30)
++	// Higher value = more likely to be chosen, 0.0D = never chosen
++	// =====================================================================
++	public static final double[] AMIDA_WEIGHTS = new double[] {
++		4.0D, // event0
++		1.0D, // event1
++		1.0D, // event2
++		1.0D, // event3
++		1.0D, // event4
++		2.0D, // event5
++		0.5D, // event6
++		0.5D, // event7
++		0.5D, // event8
++		1.0D, // event9
++		1.0D, // event10
++		1.0D, // event11
++		0.2D, // event12
++		0.5D, // event13
++		1.0D, // event14
++		1.0D, // event15
++		1.0D, // event16
++		1.0D, // event17
++		1.0D, // event18
++		1.0D, // event19
++		1.0D, // event20
++		1.0D, // event21
++		0.05D, // event22
++		0.5D, // event23
++		0.75D, // event24
++		0.75D, // event25
++		0.75D, // event26
++		0.75D, // event27
++		0.75D, // event28
++		0.75D, // event29
++		0.05D, // event30
++	};
++
++	public static void setEventConfig(int eventId, String name, double rouletteWeight, double amidaWeight) {
++		if(eventId >= 0 && eventId < EVENT_COUNT) {
++			if(name != null) {
++				EVENT_NAMES[eventId] = name;
++			}
++			ROULETTE_WEIGHTS[eventId] = Math.max(0.0D, rouletteWeight);
++			AMIDA_WEIGHTS[eventId] = Math.max(0.0D, amidaWeight);
++		}
++	}
++
++	public static void setEventName(int eventId, String name) {
++		if(eventId >= 0 && eventId < EVENT_COUNT && name != null) {
++			EVENT_NAMES[eventId] = name;
++		}
++	}
++
++	public static String getEventName(int eventId) {
++		if(eventId >= 0 && eventId < EVENT_COUNT && EVENT_NAMES[eventId] != null) {
++			return EVENT_NAMES[eventId];
++		}
++		return "Event " + eventId;
++	}
++
++	public static void setBothWeights(int eventId, double weight) {
++		if(eventId >= 0 && eventId < EVENT_COUNT) {
++			double w = Math.max(0.0D, weight);
++			ROULETTE_WEIGHTS[eventId] = w;
++			AMIDA_WEIGHTS[eventId] = w;
++		}
++	}
++
++	public static void setRouletteWeight(int eventId, double weight) {
++		if(eventId >= 0 && eventId < EVENT_COUNT) {
++			ROULETTE_WEIGHTS[eventId] = Math.max(0.0D, weight);
++		}
++	}
++
++	public static void setAmidaWeight(int eventId, double weight) {
++		if(eventId >= 0 && eventId < EVENT_COUNT) {
++			AMIDA_WEIGHTS[eventId] = Math.max(0.0D, weight);
++		}
++	}
++
++	public static int selectWeightedEvent(double[] weights, Random rand) {
++		int limit = Math.min(EVENT_COUNT, weights.length);
++		double total = 0.0D;
++		for(int i = 0; i < limit; ++i) {
++			if(weights[i] > 0.0D) {
++				total += weights[i];
++			}
++		}
++
++		if(total <= 0.0D) {
++			return rand.nextInt(limit);
++		}
++
++		double r = rand.nextDouble() * total;
++		double cumulative = 0.0D;
++		for(int i = 0; i < limit; ++i) {
++			if(weights[i] > 0.0D) {
++				cumulative += weights[i];
++				if(r <= cumulative) {
++					return i;
++				}
++			}
++		}
++
++		return limit - 1;
++	}
++
++	public static void executeServerEvent(MinecraftServer server, EntityPlayerMP player, int eventId) {
++		switch(eventId) {
++		case 0:
++			event0(server, player);
++			break;
++		case 1:
++			event1(server, player);
++			break;
++		case 2:
++			event2(server, player);
++			break;
++		case 3:
++			event3(server, player);
++			break;
++		case 4:
++			event4(server, player);
++			break;
++		case 5:
++			event5(server, player);
++			break;
++		case 6:
++			event6(server, player);
++			break;
++		case 7:
++			event7(server, player);
++			break;
++		case 8:
++			event8(server, player);
++			break;
++		case 9:
++			event9(server, player);
++			break;
++		case 10:
++			event10(server, player);
++			break;
++		case 11:
++			event11(server, player);
++			break;
++		case 12:
++			event12(server, player);
++			break;
++		case 13:
++			event13(server, player);
++			break;
++		case 14:
++			event14(server, player);
++			break;
++		case 15:
++			event15(server, player);
++			break;
++		case 16:
++			event16(server, player);
++			break;
++		case 17:
++			event17(server, player);
++			break;
++		case 18:
++			event18(server, player);
++			break;
++		case 19:
++			event19(server, player);
++			break;
++		case 20:
++			event20(server, player);
++			break;
++		case 21:
++			event21(server, player);
++			break;
++		case 22:
++			event22(server, player);
++			break;
++		case 23:
++			event23(server, player);
++			break;
++		case 24:
++			event24(server, player);
++			break;
++		case 25:
++			event25(server, player);
++			break;
++		case 26:
++			event26(server, player);
++			break;
++		case 27:
++			event27(server, player);
++			break;
++		case 28:
++			event28(server, player);
++			break;
++		case 29:
++			event29(server, player);
++			break;
++		case 30:
++			event30(server, player);
++			break;
++		case 31:
++			event31(server, player);
++			break;
++		case 32:
++			event32(server, player);
++			break;
++		default:
++			break;
++		}
++	}
++
++	// =====================================================================
++	// Server-Side Timed Execution Helpers
++	// =====================================================================
++
++	private static class ServerTimedEvent {
++		final String username;
++		final int eventId;
++		int remainingTicks;
++		boolean inTick;
++
++		ServerTimedEvent(String username, int eventId, int remainingTicks) {
++			this.username = username;
++			this.eventId = eventId;
++			this.remainingTicks = remainingTicks;
++			this.inTick = false;
++		}
++	}
++
++	private static class ServerTimedRunnable {
++		int remainingTicks;
++		final Runnable task;
++
++		ServerTimedRunnable(int remainingTicks, Runnable task) {
++			this.remainingTicks = remainingTicks;
++			this.task = task;
++		}
++	}
++
++	private static final List activeServerTimers = new ArrayList();
++	private static final List activeServerRunnables = new ArrayList();
++
++	public static synchronized void startTimerSeconds(EntityPlayerMP player, int eventId, double seconds) {
++		startTimerTicks(player, eventId, (int)Math.round(seconds * 20.0D));
++	}
++
++	public static synchronized void startTimerTicks(EntityPlayerMP player, int eventId, int ticks) {
++		if(player == null || ticks <= 0) {
++			return;
++		}
++		for(int i = 0; i < activeServerTimers.size(); ++i) {
++			ServerTimedEvent ste = (ServerTimedEvent)activeServerTimers.get(i);
++			if(ste.eventId == eventId && ste.username.equals(player.username)) {
++				if(ste.inTick) {
++					return;
++				}
++				ste.remainingTicks = ticks;
++				return;
++			}
++		}
++		activeServerTimers.add(new ServerTimedEvent(player.username, eventId, ticks));
++	}
++
++	public static synchronized void stopTimer(EntityPlayerMP player, int eventId) {
++		if(player == null) {
++			return;
++		}
++		Iterator it = activeServerTimers.iterator();
++		while(it.hasNext()) {
++			ServerTimedEvent ste = (ServerTimedEvent)it.next();
++			if(ste.eventId == eventId && ste.username.equals(player.username)) {
++				it.remove();
++			}
++		}
++	}
++
++	public static synchronized void runForSeconds(double seconds, Runnable task) {
++		runForTicks((int)Math.round(seconds * 20.0D), task);
++	}
++
++	public static synchronized void runForTicks(int ticks, Runnable task) {
++		if(ticks > 0 && task != null) {
++			activeServerRunnables.add(new ServerTimedRunnable(ticks, task));
++		}
++	}
++
++	public static synchronized void onServerTick(MinecraftServer server) {
++		if(server == null || server.getConfigurationManager() == null) {
++			return;
++		}
++		if(DeathRouletteServerManager.isTickFrozen()) {
++			return;
++		}
++
++		Iterator it = activeServerTimers.iterator();
++		while(it.hasNext()) {
++			ServerTimedEvent ste = (ServerTimedEvent)it.next();
++			EntityPlayerMP player = server.getConfigurationManager().getPlayerForUsername(ste.username);
++			if(player != null && ste.remainingTicks > 0) {
++				--ste.remainingTicks;
++				ste.inTick = true;
++				try {
++					executeServerEvent(server, player, ste.eventId);
++				} finally {
++					ste.inTick = false;
++				}
++			}
++			if(ste.remainingTicks <= 0) {
++				it.remove();
++			}
++		}
++
++		Iterator rit = activeServerRunnables.iterator();
++		while(rit.hasNext()) {
++			ServerTimedRunnable str = (ServerTimedRunnable)rit.next();
++			if(str.remainingTicks > 0) {
++				--str.remainingTicks;
++				str.task.run();
++			}
++			if(str.remainingTicks <= 0) {
++				rit.remove();
++			}
++		}
++	}
++
++	// =====================================================================
++	// Server-Side Event Functions (event0 ~ event30)
++	// =====================================================================
++
++	public static void event0(MinecraftServer server, EntityPlayerMP player) {
++	}
++
++	public static void event1(MinecraftServer server, EntityPlayerMP player) {
++		ClientEvents.event1(player);
++	}
++
++	public static void event2(MinecraftServer server, EntityPlayerMP player) {
++		for (int i = 0; i < 5; i++) {
++			EntitySpawner.spawnInFront(player, EntityPublicVoid.class, 7.5D);
++		}
++	}
++
++	public static void event3(MinecraftServer server, EntityPlayerMP player) {
++		for (int i = 0; i < 5; i++) {
++			EntityMob[] entities = {new EntityRomanesco(player.worldObj), new EntityZimber(player.worldObj)};
++			EntitySpawner.spawnInFront(player, entities[player.rand.nextInt(entities.length+1)], 7.5D);
++		}
++	}
++
++	public static void event4(MinecraftServer server, EntityPlayerMP player) {
++		for (int i = 0; i < 5; i++) {
++			EntitySpawner.spawnInFront(player, EntityHerobrine.class, 7.5D);
++		}
++	}
++
++	public static void event5(MinecraftServer server, EntityPlayerMP player) {
++		EntitySpawner.spawnInFront(player, EntityLongLeggedSteve.class, 7.5D);
++	}
++
++	public static void event6(MinecraftServer server, EntityPlayerMP player) {
++		EntitySpawner.spawnInFront(player, EntityLongFix.class, 7.5D);
++	}
++
++	public static void event7(MinecraftServer server, EntityPlayerMP player) {
++		for (int i = 0; i < 5; i++) {
++			EntitySpawner.spawnInFront(player, EntityThatThing.class, 7.5D);
++		}
++	}
++
++	public static void event8(MinecraftServer server, EntityPlayerMP player) {
++		for (int i = -2; i <= 2; i++) {
++			for (int j = 0; j >= -4; j--) {
++				for (int k = -2; k <= 2; k++) {
++					player.worldObj.c((int)player.posX + i,(int)player.posY + j,(int)player.posZ + k, 0);
++				}
++			}
++		}
++	}
++
++	public static void event9(MinecraftServer server, EntityPlayerMP player) {
++		player.worldObj.createExplosion(player,3.0F);
++	}
++
++	public static void event10(MinecraftServer server, EntityPlayerMP player) {
++		ClientEvents.event10(player);
++	}
++
++	public static void event11(MinecraftServer server, EntityPlayerMP player) {
++		player.inventory.dropAllItems();
++	}
++
++	public static void event12(MinecraftServer server, EntityPlayerMP player) {
++		ClientEvents.event12(player);
++	}
++
++	public static void event13(MinecraftServer server, EntityPlayerMP player) {
++		ClientEvents.event13(player);
++	}
++
++	public static void event14(MinecraftServer server, EntityPlayerMP player) {
++		ClientEvents.event14(player);
++	}
++
++	public static void event15(MinecraftServer server, EntityPlayerMP player) {
++		ClientEvents.event15(player);
++	}
++
++	public static void event16(MinecraftServer server, EntityPlayerMP player) {
++		ClientEvents.event16(player);
++	}
++
++	public static void event17(MinecraftServer server, EntityPlayerMP player) {
++		ClientEvents.event17(player);
++	}
++
++	public static void event18(MinecraftServer server, EntityPlayerMP player) {
++		ClientEvents.event18(player);
++	}
++
++	public static void event19(MinecraftServer server, EntityPlayerMP player) {
++		WorldGenTen.gene(player);
++	}
++
++	public static void event20(MinecraftServer server, EntityPlayerMP player) {
++		WorldGenJapan.gene(player);
++	}
++
++	public static void event21(MinecraftServer server, EntityPlayerMP player) {
++		String[] text = {"YOU SHOULDON'T BE HERE", "DIE", "HE'S HERE", "GO TO HELL", "STANDING ALONE", "HE'S HERE", "SAVE MY SOUL", "UNTITLED", "HELLO I'M DIE", "UNKNOWN", "I AM YOU MAYBE"};
++		SignPlacer.place(player, text[player.rand.nextInt(text.length + 1)], text[player.rand.nextInt(text.length + 1)], text[player.rand.nextInt(text.length + 1)], text[player.rand.nextInt(text.length + 1)]);
++	}
++
++	public static void event22(MinecraftServer server, EntityPlayerMP player) {
++		ClientEvents.event22(player);
++	}
++
++	public static void event23(MinecraftServer server, EntityPlayerMP player) {
++		ClientEvents.event23(player);
++	}
++
++	public static void event24(MinecraftServer server, EntityPlayerMP player) {
++		DeathRouletteDimensionManager.teleportToDimension(server, player, 24);
++	}
++
++	public static void event25(MinecraftServer server, EntityPlayerMP player) {
++		DeathRouletteDimensionManager.teleportToDimension(server, player, 25);
++	}
++
++	public static void event26(MinecraftServer server, EntityPlayerMP player) {
++		DeathRouletteDimensionManager.teleportToDimension(server, player, 26);
++	}
++
++	public static void event27(MinecraftServer server, EntityPlayerMP player) {
++		DeathRouletteDimensionManager.teleportToDimension(server, player, 27);
++	}
++
++	public static void event28(MinecraftServer server, EntityPlayerMP player) {
++		DeathRouletteDimensionManager.teleportToDimension(server, player, 28);
++	}
++
++	public static void event29(MinecraftServer server, EntityPlayerMP player) {
++		DeathRouletteDimensionManager.teleportToDimension(server, player, 29);
++	}
++
++	public static void event30(MinecraftServer server, EntityPlayerMP player) {
++	}
++
++	public static void event31(MinecraftServer server, EntityPlayerMP player) {
++		startTimerSeconds(player, 31, 10.0D);
++		player.worldObj.setWorldTime(player.rand.nextInt(24000));
++	}
++
++	public static void event32(MinecraftServer server, EntityPlayerMP player) {
++		startTimerSeconds(player, 32, 10.0D);
++		String[] text = {"YOU SHOULDON'T BE HERE", "DIE", "HE'S HERE", "GO TO HELL", "STANDING ALONE", "HE'S HERE", "SAVE MY SOUL", "UNTITLED", "HELLO I'M DIE", "UNKNOWN", "I AM YOU MAYBE"};
++		player.sendChatToPlayer(text[player.rand.nextInt(text.length+1)]);
++	}
++}
