@@ -1,0 +1,11 @@
+--- a/net/minecraft/src/DedicatedServer.java
++++ b/net/minecraft/src/DedicatedServer.java
+@@ -32,7 +32,7 @@
+ 		dedicatedServerCommandThread1.setDaemon(true);
+ 		dedicatedServerCommandThread1.start();
+ 		el.a();
+-		a.info("Starting minecraft server version 1.3.2");
++		a.info("Starting minecraft server version DRE");
+ 		if(Runtime.getRuntime().maxMemory() / 1024L / 1024L < 512L) {
+ 			a.warning("To start the server with more ram, launch it as \"java -Xmx1024M -Xms1024M -jar minecraft_server.jar\"");
+ 		}

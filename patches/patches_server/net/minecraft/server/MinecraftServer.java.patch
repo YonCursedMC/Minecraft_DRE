@@ -124,6 +124,15 @@
  		return i1 == -1 ? this.worldServers[1] : (i1 == 1 ? this.worldServers[2] : this.worldServers[0]);
  	}
  
+@@ -590,7 +610,7 @@
+ 	}
+ 
+ 	public String getMinecraftVersion() {
+-		return "1.3.2";
++		return "DRE";
+ 	}
+ 
+ 	public int getCurrentPlayerCount() {
 @@ -821,7 +841,7 @@
  		playerUsageSnooper1.addData("players_current", this.getCurrentPlayerCount());
  		playerUsageSnooper1.addData("players_max", this.getMaxPlayers());

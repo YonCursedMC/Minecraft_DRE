@@ -1,0 +1,11 @@
+--- a/net/minecraft/src/BanList.java
++++ b/net/minecraft/src/BanList.java
+@@ -103,7 +103,7 @@
+ 		try {
+ 			PrintWriter printWriter2 = new PrintWriter(new FileWriter(this.fileName, false));
+ 			if(z1) {
+-				printWriter2.println("# Updated " + (new SimpleDateFormat()).format(new Date()) + " by Minecraft " + "1.3.2");
++				printWriter2.println("# Updated " + (new SimpleDateFormat()).format(new Date()) + " by Minecraft " + "DRE");
+ 				printWriter2.println("# victim name | ban date | banned by | banned until | reason");
+ 				printWriter2.println();
+ 			}
