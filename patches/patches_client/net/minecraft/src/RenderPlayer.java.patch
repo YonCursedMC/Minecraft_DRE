@@ -1,0 +1,33 @@
+--- a/net/minecraft/src/RenderPlayer.java
++++ b/net/minecraft/src/RenderPlayer.java
+@@ -11,7 +11,7 @@
+ 	private static final String[] armorFilenamePrefix = new String[]{"cloth", "chain", "iron", "diamond", "gold"};
+ 
+ 	public RenderPlayer() {
+-		super(new ModelBiped(0.0F), 0.5F);
++		super(new ModelBiped(0.0F, 0.0F, 64, 64), 0.5F);
+ 	}
+ 
+ 	protected int a(EntityPlayer entityPlayer1, int i2, float f3) {
+@@ -72,7 +72,7 @@
+ 			double d10 = entityPlayer1.getDistanceSqToEntity(this.renderManager.livingPlayer);
+ 			float f12 = entityPlayer1.isSneaking() ? 32.0F : 64.0F;
+ 			if(d10 < (double)(f12 * f12)) {
+-				String string13 = entityPlayer1.username;
++				String string13 = VoiceChatManager.isPlayerSpeaking(entityPlayer1.username) ? "\u00A7a[VC] \u00A7r" + entityPlayer1.username : entityPlayer1.username;
+ 				if(entityPlayer1.isSneaking()) {
+ 					FontRenderer fontRenderer14 = this.getFontRendererFromRenderManager();
+ 					GL11.glPushMatrix();
+@@ -270,6 +270,12 @@
+ 		this.modelBipedMain.onGround = 0.0F;
+ 		this.modelBipedMain.setRotationAngles(0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0625F);
+ 		this.modelBipedMain.bipedRightArm.render(0.0625F);
++		if(this.modelBipedMain.bipedRightArmWear != null) {
++			GL11.glEnable(GL11.GL_BLEND);
++			GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
++			this.modelBipedMain.bipedRightArmWear.render(0.0625F);
++			GL11.glDisable(GL11.GL_BLEND);
++		}
+ 	}
+ 
+ 	protected void b(EntityPlayer entityPlayer1, double d2, double d4, double d6) {

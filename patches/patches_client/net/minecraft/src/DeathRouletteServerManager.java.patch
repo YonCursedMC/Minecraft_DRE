@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/net/minecraft/src/DeathRouletteServerManager.java
-@@ -1,0 +1,496 @@
+@@ -1,0 +1,489 @@
 +package net.minecraft.src;
 +
 +import java.io.ByteArrayInputStream;
@@ -58,6 +58,10 @@
 +
 +	public static boolean isTickFrozen() {
 +		return tickFrozen;
++	}
++
++	public static synchronized void resetOnServerStop() {
++		resetState();
 +	}
 +
 +	public static synchronized void onEnterCustomDimension() {
@@ -151,7 +155,7 @@
 +		if(isRoulette) {
 +			currentMode = MODE_ROULETTE_RUNNING;
 +			if(currentSessionIsEscape) {
-+				rouletteWinningEvent = RAND.nextInt(10); // 0 = escape (1/10 chance)
++				rouletteWinningEvent = RAND.nextInt(5); // 0 = escape (1/5 chance)
 +			} else {
 +				rouletteWinningEvent = DeathRouletteEvents.selectWeightedEvent(DeathRouletteEvents.ROULETTE_WEIGHTS, RAND);
 +			}
@@ -160,14 +164,14 @@
 +		} else {
 +			currentMode = MODE_AMIDA_WAITING;
 +			int playerCount = players.size();
-+			amidaCols = currentSessionIsEscape ? Math.max(10, playerCount) : Math.max(8, playerCount);
++			amidaCols = currentSessionIsEscape ? Math.max(5, playerCount) : Math.max(8, playerCount);
 +			amidaRows = 14;
 +			amidaSeed = RAND.nextLong();
 +			amidaBridges = generateAmidaBridges(amidaSeed, amidaRows, amidaCols);
 +
 +			amidaBottomEvents = new int[amidaCols];
 +			if(currentSessionIsEscape) {
-+				int winCount = Math.max(1, (amidaCols + 5) / 10);
++				int winCount = Math.max(1, (amidaCols + 2) / 5);
 +				List indices = new ArrayList();
 +				for(int c = 0; c < amidaCols; ++c) {
 +					indices.add(Integer.valueOf(c));
@@ -181,16 +185,8 @@
 +					amidaBottomEvents[winIdx] = 1; // 1 = escape
 +				}
 +			} else {
-+				boolean[] used = new boolean[DeathRouletteEvents.EVENT_COUNT];
 +				for(int c = 0; c < amidaCols; ++c) {
-+					int ev = DeathRouletteEvents.selectWeightedEvent(DeathRouletteEvents.AMIDA_WEIGHTS, RAND);
-+					int tries = 0;
-+					while(used[ev] && tries < 40 && amidaCols <= DeathRouletteEvents.EVENT_COUNT) {
-+						ev = DeathRouletteEvents.selectWeightedEvent(DeathRouletteEvents.AMIDA_WEIGHTS, RAND);
-+						++tries;
-+					}
-+					used[ev] = true;
-+					amidaBottomEvents[c] = ev;
++					amidaBottomEvents[c] = DeathRouletteEvents.selectWeightedEvent(DeathRouletteEvents.AMIDA_WEIGHTS, RAND);
 +				}
 +			}
 +
@@ -312,9 +308,6 @@
 +				boolean won = (finishedMode == MODE_ROULETTE_RUNNING && ev == 0) || (finishedMode == MODE_AMIDA_TRACING && ev == 1);
 +				if(won) {
 +					DeathRouletteDimensionManager.teleportToDimension(server, player, 0);
-+					player.sendChatToPlayer("\u00a7a\u00a7l>> \u3042\u305F\u308A\uFF01 \u5143\u306E\u4E16\u754C\u3078\u8131\u51FA\u3057\u307E\u3057\u305F\uFF01 <<");
-+				} else {
-+					player.sendChatToPlayer("\u00a7c\u00a7l>> \u306F\u305A\u308C... \u4F55\u3082\u8D77\u3053\u3089\u306A\u304B\u3063\u305F\u3002 <<");
 +				}
 +			} else {
 +				DeathRouletteEvents.executeServerEvent(server, player, ev);

@@ -55,7 +55,7 @@
 +		bipedBody.render(f5);
 +		bipedRightArm.render(f5);
 +		bipedLeftArm.render(f5);
-+		bipedRightArm.render(f5);
++		bipedRightLeg.render(f5);
 +		bipedLeftLeg.render(f5);
 +	}
 +

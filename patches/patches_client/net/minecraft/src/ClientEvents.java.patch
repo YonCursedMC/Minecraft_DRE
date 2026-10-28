@@ -413,7 +413,7 @@
 +		if(random.nextBoolean()) {
 +			for(int i = 0; i < mc.displayWidth / 6; ++i) {
 +				String[] text = {"YOU SHOULDON'T BE HERE YOU SHOULDON'T BE HERE YOU SHOULDON'T BE HERE", "DIEDIEDIEDIEDIEDIEDIEDIEDIEDIEDIEDIE", "HE'S HERE HE'S HERE HE'S HERE HE'S HERE HE'S HERE", "GO TO HELL GO TO HELL GO TO HELL GO TO HELL", "STANDING ALONE STANDING ALONE STANDING ALONE", "HE'S HERE HE'S HERE HE'S HERE HE'S HERE HE'S HERE", "SAVE MY SOUL SAVE MY SOUL SAVE MY SOUL", "UNTITLED UNTITLED UNTITLED UNTITLED UNTITLED UNTITLED", "HELLO I'M DIE HELLO I'M DIE HELLO I'M DIE HELLO I'M DIE HELLO I'M DIE", "UNKNOWN UNKNOWN UNKNOWN UNKNOWN UNKNOWN", "I AM YOU MAYBE I AM YOU MAYBE I AM YOU MAYBE I AM YOU MAYBE I AM YOU MAYBE"};
-+				mc.ingameGUI.drawCenteredString(mc.fontRenderer, "\u00A74" + text[random.nextInt(text.length + 1)], random.nextInt(mc.displayWidth), random.nextInt(mc.displayHeight), 0);
++				mc.ingameGUI.drawCenteredString(mc.fontRenderer, "\u00A74" + text[random.nextInt(text.length)], random.nextInt(mc.displayWidth), random.nextInt(mc.displayHeight), 0);
 +			}
 +		}else {
 +			String X = "\u00A7xE";
@@ -441,7 +441,7 @@
 +			try {
 +				new Thread(()->{
 +					String[] text = {"YOU SHOULDON'T BE HERE", "DIE", "HE'S HERE", "GO TO HELL", "STANDING ALONE", "HE'S HERE", "SAVE MY SOUL", "UNTITLED", "HELLO I'M DIE", "UNKNOWN", "I AM YOU MAYBE"};
-+					SimpleJnaModal.Modal(text[random.nextInt(text.length+1)], text[random.nextInt(text.length+1)]);
++					SimpleJnaModal.Modal(text[random.nextInt(text.length)], text[random.nextInt(text.length)]);
 +				}).start();
 +                Thread.sleep(40);
 +            } catch (InterruptedException e) {
@@ -459,7 +459,7 @@
 +	}
 +	public static void event13(Minecraft mc) {
 +		Random random = new Random();
-+		startClientTimerSeconds(1, 5.0D);
++		startClientTimerSeconds(13, 5.0D);
 +		mc.ingameGUI.renderNONO(random.nextInt(mc.displayWidth), random.nextInt(mc.displayHeight));
 +	}
 +	public static void event14(Minecraft mc) {
@@ -472,7 +472,7 @@
 +			try {
 +				new Thread(()->{
 +					String[] text = {"YOU SHOULDON'T BE HERE", "DIE", "HE'S HERE", "GO TO HELL", "STANDING ALONE", "HE'S HERE", "SAVE MY SOUL", "UNTITLED", "HELLO I'M DIE", "UNKNOWN", "I AM YOU MAYBE"};
-+					SimpleJnaModal.Modal(text[random.nextInt(text.length+1)], text[random.nextInt(text.length+1)]);
++					SimpleJnaModal.Modal(text[random.nextInt(text.length)], text[random.nextInt(text.length)]);
 +				}).start();
 +				Thread.sleep(40);
 +			} catch (InterruptedException e) {
@@ -489,7 +489,7 @@
 +	public static void event18(Minecraft mc) {
 +		Random random = new Random();
 +		WavPlaySound.playsound("/sounds/entity"+random.nextInt(3)+".wav");
-+		startClientTimerSeconds(1, 2.0D);
++		startClientTimerSeconds(18, 2.0D);
 +		if(random.nextBoolean()) {
 +			mc.ingameGUI.renderHeroBrine(mc.displayWidth, mc.displayHeight);
 +		}else {

@@ -6,7 +6,7 @@
 +public class EntityLongFixS extends EntityLongFix {
 +	public EntityLongFixS(World world1) {
 +		super(world1);
-+		this.texture = "/addmob/LongLeggedSteve.png";
++		this.texture = "/addmob/longfix.png";
 +		this.moveSpeed = 1.0F;
 +		this.f = 1;
 +		this.stepHeight = 20.0F;

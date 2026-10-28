@@ -9,7 +9,15 @@
  			fontRenderer8.a(this.mc.debugInfoRenders(), 2, 12, 0xFFFFFF);
  			fontRenderer8.a(this.mc.getEntityDebug(), 2, 22, 0xFFFFFF);
  			fontRenderer8.a(this.mc.debugInfoEntities(), 2, 32, 0xFFFFFF);
-@@ -460,6 +460,66 @@
+@@ -424,6 +424,7 @@
+ 			}
+ 		}
+ 
++		VoiceChatManager.renderHud(this.mc, i6, i7);
+ 		GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
+ 		GL11.glDisable(GL11.GL_LIGHTING);
+ 		GL11.glEnable(GL11.GL_ALPHA_TEST);
+@@ -460,6 +461,81 @@
  		GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
  		GL11.glDisable(GL11.GL_ALPHA_TEST);
  		GL11.glBindTexture(GL11.GL_TEXTURE_2D, this.mc.renderEngine.getTexture("%blur%/misc/pumpkinblur.png"));
@@ -27,6 +35,21 @@
 +	}
 +
 +	public void renderNONO(int i1, int i2) {
++		ScaledResolution scaledResolution = new ScaledResolution(this.mc.gameSettings, this.mc.displayWidth, this.mc.displayHeight);
++		double screenW = scaledResolution.getScaledWidth_double();
++		double screenH = scaledResolution.getScaledHeight_double();
++		int scale = scaledResolution.getScaleFactor();
++		if(scale <= 0) {
++			scale = 1;
++		}
++		double w = (double)i1 / (double)scale;
++		double h = (double)i2 / (double)scale;
++		double x1 = (screenW - w) / 2.0D;
++		double y1 = (screenH - h) / 2.0D;
++		double x2 = x1 + w;
++		double y2 = y1 + h;
++		this.mc.entityRenderer.setupOverlayRendering();
++		GL11.glEnable(GL11.GL_BLEND);
 +		GL11.glDisable(GL11.GL_DEPTH_TEST);
 +		GL11.glDepthMask(false);
 +		GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
@@ -35,10 +58,10 @@
 +		GL11.glBindTexture(GL11.GL_TEXTURE_2D, this.mc.renderEngine.getTexture("/addimage/NONO.png"));
 +		Tessellator tessellator3 = Tessellator.instance;
 +		tessellator3.startDrawingQuads();
-+		tessellator3.addVertexWithUV(0.0D, (double)i2, -90.0D, 0.0D, 1.0D);
-+		tessellator3.addVertexWithUV((double)i1, (double)i2, -90.0D, 1.0D, 1.0D);
-+		tessellator3.addVertexWithUV((double)i1, 0.0D, -90.0D, 1.0D, 0.0D);
-+		tessellator3.addVertexWithUV(0.0D, 0.0D, -90.0D, 0.0D, 0.0D);
++		tessellator3.addVertexWithUV(x1, y2, -90.0D, 0.0D, 1.0D);
++		tessellator3.addVertexWithUV(x2, y2, -90.0D, 1.0D, 1.0D);
++		tessellator3.addVertexWithUV(x2, y1, -90.0D, 1.0D, 0.0D);
++		tessellator3.addVertexWithUV(x1, y1, -90.0D, 0.0D, 0.0D);
 +		tessellator3.draw();
 +		GL11.glDepthMask(true);
 +		GL11.glEnable(GL11.GL_DEPTH_TEST);

@@ -1,14 +1,15 @@
 --- a/net/minecraft/client/Minecraft.java
 +++ b/net/minecraft/client/Minecraft.java
-@@ -29,6 +29,7 @@
+@@ -29,6 +29,8 @@
  import net.minecraft.src.ColorizerGrass;
  import net.minecraft.src.ColorizerWater;
  import net.minecraft.src.CrashReport;
 +import net.minecraft.src.DeathRouletteManager;
++import net.minecraft.src.VoiceChatManager;
  import net.minecraft.src.EffectRenderer;
  import net.minecraft.src.EntityBoat;
  import net.minecraft.src.EntityClientPlayerMP;
-@@ -131,7 +132,7 @@
+@@ -131,7 +133,7 @@
  public abstract class Minecraft implements Runnable, IPlayerUsage {
  	public static byte[] memoryReserve = new byte[10485760];
  	private ServerData currentServerData;
@@ -17,7 +18,7 @@
  	public PlayerControllerMP playerController;
  	private boolean fullscreen = false;
  	private boolean hasCrashed = false;
-@@ -258,7 +259,7 @@
+@@ -258,7 +260,7 @@
  			Display.setDisplayMode(new DisplayMode(this.displayWidth, this.displayHeight));
  		}
  
@@ -26,7 +27,102 @@
  		System.out.println("LWJGL Version: " + Sys.getVersion());
  
  		try {
-@@ -580,7 +581,7 @@
+@@ -486,7 +488,22 @@
+ 	}
+ 
+ 	public void shutdownMinecraftApplet() {
++		if(!this.hasCrashed) {
++			Thread watchdog = new Thread(new Runnable() {
++				public void run() {
++					try {
++						Thread.sleep(1500L);
++					} catch (InterruptedException ignored) {
++					}
++					Runtime.getRuntime().halt(0);
++				}
++			}, "Shutdown-Watchdog");
++			watchdog.setDaemon(true);
++			watchdog.start();
++		}
++
+ 		try {
++			DeathRouletteManager.resetOnWorldUnload();
+ 			this.statFileWriter.syncStats();
+ 
+ 			try {
+@@ -533,39 +550,39 @@
+ 			return;
+ 		}
+ 
+-		while(true) {
+-			try {
+-				if(this.running) {
+-					if(this.hasCrashed && this.crashReporter != null) {
+-						this.displayCrashReport(this.crashReporter);
+-						return;
+-					}
+-
+-					if(this.refreshTexturePacksScheduled) {
+-						this.refreshTexturePacksScheduled = false;
+-						this.renderEngine.refreshTextures();
+-					}
+-
+-					try {
+-						this.runGameLoop();
+-					} catch (OutOfMemoryError outOfMemoryError10) {
+-						this.freeMemory();
+-						this.displayGuiScreen(new GuiMemoryErrorScreen());
+-						System.gc();
+-					}
+-				}
+-			} catch (MinecraftError minecraftError12) {
+-			} catch (ReportedException reportedException13) {
+-				this.addGraphicsAndWorldToCrashReport(reportedException13.getCrashReport());
+-				this.freeMemory();
+-				reportedException13.printStackTrace();
+-				this.displayCrashReport(reportedException13.getCrashReport());
+-			} catch (Throwable throwable14) {
+-				CrashReport crashReport2 = this.addGraphicsAndWorldToCrashReport(new CrashReport("Unexpected error", throwable14));
+-				this.freeMemory();
+-				throwable14.printStackTrace();
+-				this.displayCrashReport(crashReport2);
++		try {
++			while(this.running) {
++				if(this.hasCrashed && this.crashReporter != null) {
++					this.displayCrashReport(this.crashReporter);
++					return;
++				}
++
++				if(this.refreshTexturePacksScheduled) {
++					this.refreshTexturePacksScheduled = false;
++					this.renderEngine.refreshTextures();
++				}
++
++				try {
++					this.runGameLoop();
++				} catch (OutOfMemoryError outOfMemoryError10) {
++					this.freeMemory();
++					this.displayGuiScreen(new GuiMemoryErrorScreen());
++					System.gc();
++				}
+ 			}
++		} catch (MinecraftError minecraftError12) {
++		} catch (ReportedException reportedException13) {
++			this.addGraphicsAndWorldToCrashReport(reportedException13.getCrashReport());
++			this.freeMemory();
++			reportedException13.printStackTrace();
++			this.displayCrashReport(reportedException13.getCrashReport());
++		} catch (Throwable throwable14) {
++			CrashReport crashReport2 = this.addGraphicsAndWorldToCrashReport(new CrashReport("Unexpected error", throwable14));
++			this.freeMemory();
++			throwable14.printStackTrace();
++			this.displayCrashReport(crashReport2);
++		} finally {
++			this.shutdownMinecraftApplet();
+ 		}
+ 	}
+ 
+@@ -580,7 +597,7 @@
  				this.shutdown();
  			}
  
@@ -35,7 +131,7 @@
  				float f1 = this.timer.renderPartialTicks;
  				this.timer.updateTimer();
  				this.timer.renderPartialTicks = f1;
-@@ -1022,6 +1023,24 @@
+@@ -1022,6 +1039,24 @@
  	}
  
  	public void runTick() {
@@ -60,7 +156,16 @@
  		if(this.rightClickDelayTimer > 0) {
  			--this.rightClickDelayTimer;
  		}
-@@ -1296,6 +1315,7 @@
+@@ -1224,6 +1259,8 @@
+ 							if(Keyboard.getEventKey() == Keyboard.KEY_F8) {
+ 								this.gameSettings.smoothCamera = !this.gameSettings.smoothCamera;
+ 							}
++
++							VoiceChatManager.onKeyPressInGame(this, Keyboard.getEventKey());
+ 						}
+ 
+ 						int i5;
+@@ -1296,6 +1333,7 @@
  			this.myNetworkManager.processReadPackets();
  		}
  
@@ -68,3 +173,12 @@
  		this.mcProfiler.endSection();
  		this.systemTime = getSystemTime();
  	}
+@@ -1360,6 +1398,8 @@
+ 	public void loadWorld(WorldClient worldClient1, String string2) {
+ 		this.statFileWriter.syncStats();
+ 		if(worldClient1 == null) {
++			DeathRouletteManager.resetOnWorldUnload();
++			net.minecraft.src.DeathRouletteServerManager.resetOnServerStop();
+ 			NetClientHandler netClientHandler3 = this.getNetHandler();
+ 			if(netClientHandler3 != null) {
+ 				netClientHandler3.cleanup();

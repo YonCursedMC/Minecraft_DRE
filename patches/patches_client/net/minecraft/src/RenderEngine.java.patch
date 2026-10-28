@@ -1,0 +1,35 @@
+--- a/net/minecraft/src/RenderEngine.java
++++ b/net/minecraft/src/RenderEngine.java
+@@ -130,7 +130,11 @@
+ 					if(inputStream7 == null) {
+ 						this.setupTexture(this.missingTextureImage, i3);
+ 					} else {
+-						this.setupTexture(this.readTextureImage(inputStream7), i3);
++						BufferedImage img8 = this.readTextureImage(inputStream7);
++						if("/mob/char.png".equals(string1)) {
++							img8 = (new ImageBufferDownload()).parseUserSkin(img8);
++						}
++						this.setupTexture(img8, i3);
+ 					}
+ 				}
+ 
+@@ -379,6 +383,9 @@
+ 					bufferedImage4 = this.readTextureImage(iTexturePack1.getResourceAsStream(string9.substring(11)));
+ 				} else {
+ 					bufferedImage4 = this.readTextureImage(iTexturePack1.getResourceAsStream(string9));
++					if("/mob/char.png".equals(string9)) {
++						bufferedImage4 = (new ImageBufferDownload()).parseUserSkin(bufferedImage4);
++					}
+ 				}
+ 
+ 				int i5 = ((Integer)this.textureMap.get(string9)).intValue();
+@@ -406,6 +413,9 @@
+ 					bufferedImage4 = this.readTextureImage(iTexturePack1.getResourceAsStream(string9.substring(6)));
+ 				} else {
+ 					bufferedImage4 = this.readTextureImage(iTexturePack1.getResourceAsStream(string9));
++					if("/mob/char.png".equals(string9)) {
++						bufferedImage4 = (new ImageBufferDownload()).parseUserSkin(bufferedImage4);
++					}
+ 				}
+ 
+ 				this.getImageContents(bufferedImage4, (int[])this.textureContentsMap.get(string9));

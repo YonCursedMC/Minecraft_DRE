@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/net/minecraft/src/EntityThatThing.java
-@@ -1,0 +1,35 @@
+@@ -1,0 +1,31 @@
 +package net.minecraft.src;
 +
 +public class EntityThatThing extends EntityMob {
@@ -18,10 +18,6 @@
 +
 +	public void onLivingUpdate() {
 +		super.onLivingUpdate();
-+	}
-+
-+	public boolean attackEntityFrom(DamageSource damageSource1, int i2) {
-+		return false;
 +	}
 +
 +	protected void onAttackPlayerMP(EntityPlayerMP player) {

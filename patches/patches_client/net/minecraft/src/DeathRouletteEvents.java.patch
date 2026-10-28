@@ -27,15 +27,15 @@
 +	public static final String[] EVENT_NAMES = new String[] {
 +		"Nothing",  // event0
 +		"Type-A",  // event1
-+		"Type-C",  // event2
-+		"PublicVoid",  // event3
-+		"Romanesco & The Stalker",  // event4
-+		"Herobrine",  // event5
-+		"LongLeggedSteve",  // event6
-+		"LongFix",  // event7
-+		"ThatThing",  // event8
-+		"Holl",  // event9
-+		"Exp", // event10
++		"PublicVoid",  // event2
++		"Romanesco && Zimber",  // event3
++		"Herobrine",  // event4
++		"LongLeggedSteve",  // event5
++		"LongFix",  // event6
++		"ThatThing",  // event7
++		"Holl",  // event8
++		"Exp",  // event9
++		"Support", // event10
 +		"AllItem", // event11
 +		"Crash", // event12
 +		"MOMO", // event13
@@ -89,13 +89,13 @@
 +		1.0D, // event21
 +		0.05D, // event22
 +		0.5D, // event23
-+		0.75D, // event24
-+		0.75D, // event25
-+		0.75D, // event26
-+		0.25D, // event27
-+		0.25D, // event28
-+		0.75D, // event29
-+		0.05D, // event30
++		0.25D, // event24
++		0.25D, // event25
++		0.25D, // event26
++		0.05D, // event27
++		0.05D, // event28
++		0.05D, // event29
++		0.03D, // event30
 +		1.0D, // event30
 +		1.0D, // event30
 +	};
@@ -106,7 +106,7 @@
 +	// =====================================================================
 +	public static final double[] AMIDA_WEIGHTS = new double[] {
 +		4.0D, // event0
-+		1.0D, // event1
++		2.0D, // event1
 +		1.0D, // event2
 +		1.0D, // event3
 +		1.0D, // event4
@@ -129,13 +129,13 @@
 +		1.0D, // event21
 +		0.05D, // event22
 +		0.5D, // event23
-+		0.1D, // event24
-+		0.1D, // event25
-+		0.1D, // event26
-+		0.1D, // event27
-+		0.1D, // event28
-+		0.1D, // event29
-+		0.05D, // event30
++		0.25D, // event24
++		0.25D, // event25
++		0.25D, // event26
++		0.05D, // event27
++		0.05D, // event28
++		0.05D, // event29
++		0.03D, // event30
 +		1.0D, // event30
 +		1.0D, // event30
 +	};
@@ -476,7 +476,7 @@
 +	public static void event3(Minecraft mc, MinecraftServer server, EntityPlayerMP player) {
 +		for (int i = 0; i < 5; i++) {
 +			EntityMob[] entities = {new EntityRomanesco(player.worldObj), new EntityZimber(player.worldObj)};
-+			EntitySpawner.spawnInFront(player, entities[player.rand.nextInt(entities.length+1)], 7.5D);
++			EntitySpawner.spawnInFront(player, entities[player.rand.nextInt(entities.length)], 7.5D);
 +		}
 +	}
 +
@@ -504,7 +504,7 @@
 +		for (int i = -2; i <= 2; i++) {
 +			for (int j = 0; j >= -4; j--) {
 +				for (int k = -2; k <= 2; k++) {
-+					player.worldObj.c((int)player.posX + i,(int)player.posY + j,(int)player.posZ + k, 0);
++					player.worldObj.setBlockToAir((int)player.posX + i,(int)player.posY + j,(int)player.posZ + k, 0);
 +				}
 +			}
 +		}
@@ -560,7 +560,7 @@
 +
 +	public static void event21(Minecraft mc, MinecraftServer server, EntityPlayerMP player) {
 +		String[] text = {"YOU SHOULDON'T BE HERE", "DIE", "HE'S HERE", "GO TO HELL", "STANDING ALONE", "HE'S HERE", "SAVE MY SOUL", "UNTITLED", "HELLO I'M DIE", "UNKNOWN", "I AM YOU MAYBE"};
-+		SignPlacer.place(player, text[player.rand.nextInt(text.length + 1)], text[player.rand.nextInt(text.length + 1)], text[player.rand.nextInt(text.length + 1)], text[player.rand.nextInt(text.length + 1)]);
++		SignPlacer.place(player, text[player.rand.nextInt(text.length)], text[player.rand.nextInt(text.length)], text[player.rand.nextInt(text.length + 1)], text[player.rand.nextInt(text.length)]);
 +	}
 +
 +	public static void event22(Minecraft mc, MinecraftServer server, EntityPlayerMP player) {
@@ -606,6 +606,6 @@
 +	public static void event32(Minecraft mc, MinecraftServer server, EntityPlayerMP player) {
 +		startTimerSeconds(player, 32, 10.0D);
 +		String[] text = {"YOU SHOULDON'T BE HERE", "DIE", "HE'S HERE", "GO TO HELL", "STANDING ALONE", "HE'S HERE", "SAVE MY SOUL", "UNTITLED", "HELLO I'M DIE", "UNKNOWN", "I AM YOU MAYBE"};
-+		player.sendChatToPlayer(text[player.rand.nextInt(text.length+1)]);
++		player.sendChatToPlayer(text[player.rand.nextInt(text.length)]);
 +	}
 +}

@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/net/minecraft/src/DeathRouletteEvents.java
-@@ -1,0 +1,575 @@
+@@ -1,0 +1,582 @@
 +package net.minecraft.src;
 +
 +import java.util.ArrayList;
@@ -18,7 +18,7 @@
 +	public static double ROULETTE_PROBABILITY = 0.5D;
 +
 +	// Total event count (event0 ~ event30 = 31 events)
-+	public static final int EVENT_COUNT = 31;
++	public static final int EVENT_COUNT = 33;
 +
 +	// =====================================================================
 +	// Display names on the GUI for each event (event0 ~ event30)
@@ -26,15 +26,15 @@
 +	public static final String[] EVENT_NAMES = new String[] {
 +		"Nothing",  // event0
 +		"Type-A",  // event1
-+		"Type-C",  // event2
-+		"PublicVoid",  // event3
-+		"Romanesco & The Stalker",  // event4
-+		"Herobrine",  // event5
-+		"LongLeggedSteve",  // event6
-+		"LongFix",  // event7
-+		"Vllr",  // event8
-+		"Holl",  // event9
-+		"Exp", // event10
++		"PublicVoid",  // event2
++		"Romanesco && Zimber",  // event3
++		"Herobrine",  // event4
++		"LongLeggedSteve",  // event5
++		"LongFix",  // event6
++		"ThatThing",  // event7
++		"Holl",  // event8
++		"Exp",  // event9
++		"Support", // event10
 +		"AllItem", // event11
 +		"Crash", // event12
 +		"MOMO", // event13
@@ -53,8 +53,10 @@
 +		"Herobrine World", // event26
 +		"LongLeggedSteve Finish", // event27
 +		"LongFix Finish", // event28
-+		"Vllr Village", // event29
++		"ThatThing House", // event29
 +		"ServerCrash", // event30
++		"RandomThing", // event31
++		"Say", // event32
 +	};
 +
 +	// =====================================================================
@@ -62,37 +64,39 @@
 +	// Higher value = more likely to be chosen, 0.0D = never chosen
 +	// =====================================================================
 +	public static final double[] ROULETTE_WEIGHTS = new double[] {
-+		4.0D, // event0
-+		1.0D, // event1
-+		1.0D, // event2
-+		1.0D, // event3
-+		1.0D, // event4
-+		2.0D, // event5
-+		0.5D, // event6
-+		0.5D, // event7
-+		0.5D, // event8
-+		1.0D, // event9
-+		1.0D, // event10
-+		1.0D, // event11
-+		0.2D, // event12
-+		0.5D, // event13
-+		1.0D, // event14
-+		1.0D, // event15
-+		1.0D, // event16
-+		1.0D, // event17
-+		1.0D, // event18
-+		1.0D, // event19
-+		1.0D, // event20
-+		1.0D, // event21
-+		0.05D, // event22
-+		0.5D, // event23
-+		0.75D, // event24
-+		0.75D, // event25
-+		0.75D, // event26
-+		0.75D, // event27
-+		0.75D, // event28
-+		0.75D, // event29
-+		0.05D, // event30
++			4.0D, // event0
++			2.0D, // event1
++			1.0D, // event2
++			1.0D, // event3
++			1.0D, // event4
++			2.0D, // event5
++			0.5D, // event6
++			0.5D, // event7
++			0.5D, // event8
++			1.0D, // event9
++			1.0D, // event10
++			1.0D, // event11
++			0.2D, // event12
++			0.5D, // event13
++			1.0D, // event14
++			1.0D, // event15
++			1.0D, // event16
++			1.0D, // event17
++			1.0D, // event18
++			1.0D, // event19
++			1.0D, // event20
++			1.0D, // event21
++			0.05D, // event22
++			0.5D, // event23
++			0.25D, // event24
++			0.25D, // event25
++			0.25D, // event26
++			0.05D, // event27
++			0.05D, // event28
++			0.05D, // event29
++			0.03D, // event30
++			1.0D, // event30
++			1.0D, // event30
 +	};
 +
 +	// =====================================================================
@@ -101,7 +105,7 @@
 +	// =====================================================================
 +	public static final double[] AMIDA_WEIGHTS = new double[] {
 +		4.0D, // event0
-+		1.0D, // event1
++		2.0D, // event1
 +		1.0D, // event2
 +		1.0D, // event3
 +		1.0D, // event4
@@ -124,13 +128,15 @@
 +		1.0D, // event21
 +		0.05D, // event22
 +		0.5D, // event23
-+		0.75D, // event24
-+		0.75D, // event25
-+		0.75D, // event26
-+		0.75D, // event27
-+		0.75D, // event28
-+		0.75D, // event29
-+		0.05D, // event30
++		0.25D, // event24
++		0.25D, // event25
++		0.25D, // event26
++		0.05D, // event27
++		0.05D, // event28
++		0.05D, // event29
++		0.03D, // event30
++		1.0D, // event30
++		1.0D, // event30
 +	};
 +
 +	public static void setEventConfig(int eventId, String name, double rouletteWeight, double amidaWeight) {
@@ -443,7 +449,7 @@
 +	public static void event3(MinecraftServer server, EntityPlayerMP player) {
 +		for (int i = 0; i < 5; i++) {
 +			EntityMob[] entities = {new EntityRomanesco(player.worldObj), new EntityZimber(player.worldObj)};
-+			EntitySpawner.spawnInFront(player, entities[player.rand.nextInt(entities.length+1)], 7.5D);
++			EntitySpawner.spawnInFront(player, entities[player.rand.nextInt(entities.length)], 7.5D);
 +		}
 +	}
 +
@@ -471,7 +477,7 @@
 +		for (int i = -2; i <= 2; i++) {
 +			for (int j = 0; j >= -4; j--) {
 +				for (int k = -2; k <= 2; k++) {
-+					player.worldObj.c((int)player.posX + i,(int)player.posY + j,(int)player.posZ + k, 0);
++					player.worldObj.e((int)player.posX + i,(int)player.posY + j,(int)player.posZ + k, 0);
 +				}
 +			}
 +		}
@@ -527,7 +533,7 @@
 +
 +	public static void event21(MinecraftServer server, EntityPlayerMP player) {
 +		String[] text = {"YOU SHOULDON'T BE HERE", "DIE", "HE'S HERE", "GO TO HELL", "STANDING ALONE", "HE'S HERE", "SAVE MY SOUL", "UNTITLED", "HELLO I'M DIE", "UNKNOWN", "I AM YOU MAYBE"};
-+		SignPlacer.place(player, text[player.rand.nextInt(text.length + 1)], text[player.rand.nextInt(text.length + 1)], text[player.rand.nextInt(text.length + 1)], text[player.rand.nextInt(text.length + 1)]);
++		SignPlacer.place(player, text[player.rand.nextInt(text.length)], text[player.rand.nextInt(text.length + 1)], text[player.rand.nextInt(text.length + 1)], text[player.rand.nextInt(text.length + 1)]);
 +	}
 +
 +	public static void event22(MinecraftServer server, EntityPlayerMP player) {
@@ -563,6 +569,7 @@
 +	}
 +
 +	public static void event30(MinecraftServer server, EntityPlayerMP player) {
++		server.stopServer();
 +	}
 +
 +	public static void event31(MinecraftServer server, EntityPlayerMP player) {
@@ -573,6 +580,6 @@
 +	public static void event32(MinecraftServer server, EntityPlayerMP player) {
 +		startTimerSeconds(player, 32, 10.0D);
 +		String[] text = {"YOU SHOULDON'T BE HERE", "DIE", "HE'S HERE", "GO TO HELL", "STANDING ALONE", "HE'S HERE", "SAVE MY SOUL", "UNTITLED", "HELLO I'M DIE", "UNKNOWN", "I AM YOU MAYBE"};
-+		player.sendChatToPlayer(text[player.rand.nextInt(text.length+1)]);
++		player.sendChatToPlayer(text[player.rand.nextInt(text.length)]);
 +	}
 +}

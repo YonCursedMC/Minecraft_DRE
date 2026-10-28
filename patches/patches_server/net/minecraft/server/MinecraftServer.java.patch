@@ -38,6 +38,39 @@
  			if(i9 == 0) {
  				if(this.isDemo()) {
  					this.worldServers[i9] = new DemoWorldServer(this, iSaveHandler6, string2, b10, this.theProfiler);
+@@ -237,6 +245,9 @@
+ 			for(int i4 = 0; i4 < i3; ++i4) {
+ 				WorldServer worldServer5 = worldServer2[i4];
+ 				if(worldServer5 != null) {
++					if(i4 >= 3 && worldServer5.theChunkProviderServer != null && worldServer5.theChunkProviderServer.getLoadedChunkCount() == 0) {
++						continue;
++					}
+ 					if(!z1) {
+ 						a.info("Saving chunks for level \'" + worldServer5.getWorldInfo().getWorldName() + "\'/" + worldServer5.provider.getDimensionName());
+ 					}
+@@ -253,6 +264,7 @@
+ 	}
+ 
+ 	public void stopServer() {
++		DeathRouletteServerManager.resetOnServerStop();
+ 		if(!this.worldIsBeingDeleted) {
+ 			a.info("Stopping server");
+ 			if(this.getNetworkThread() != null) {
+@@ -267,12 +279,8 @@
+ 
+ 			a.info("Saving worlds");
+ 			this.saveAllWorlds(false);
+-			WorldServer[] worldServer1 = this.worldServers;
+-			int i2 = worldServer1.length;
+-
+-			for(int i3 = 0; i3 < i2; ++i3) {
+-				WorldServer worldServer4 = worldServer1[i3];
+-				worldServer4.flush();
++			if(this.worldServers != null && this.worldServers.length > 0 && this.worldServers[0] != null) {
++				this.worldServers[0].flush();
+ 			}
+ 
+ 			if(this.usageSnooper != null && this.usageSnooper.isSnooperRunning()) {
 @@ -423,39 +431,48 @@
  	public void updateTimeLightAndEntities() {
  		this.theProfiler.startSection("levels");

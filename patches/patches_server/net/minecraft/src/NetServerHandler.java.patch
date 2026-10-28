@@ -9,12 +9,16 @@
  			this.playerEntity.onUpdateEntity();
  			if(this.playerEntity.ridingEntity == null) {
  				this.playerEntity.setLocationAndAngles(this.lastPosX, this.lastPosY, this.lastPosZ, this.playerEntity.rotationYaw, this.playerEntity.rotationPitch);
-@@ -741,6 +741,11 @@
+@@ -741,6 +741,15 @@
  	}
  
  	public void handleCustomPayload(Packet250CustomPayload packet250CustomPayload1) {
 +		if(DeathRouletteServerManager.CHANNEL.equals(packet250CustomPayload1.channel)) {
 +			DeathRouletteServerManager.handleClientPacket(this.mcServer, this.playerEntity, packet250CustomPayload1);
++			return;
++		}
++		if(VoiceChatServerManager.CHANNEL.equals(packet250CustomPayload1.channel)) {
++			VoiceChatServerManager.handleClientPacket(this.mcServer, this.playerEntity, packet250CustomPayload1);
 +			return;
 +		}
 +

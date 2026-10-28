@@ -1,0 +1,11 @@
+--- a/net/minecraft/src/RenderGlobal.java
++++ b/net/minecraft/src/RenderGlobal.java
+@@ -1482,7 +1482,7 @@
+ 		}
+ 
+ 		if(entity1.cloakUrl != null) {
+-			this.renderEngine.obtainImageData(entity1.cloakUrl, new ImageBufferDownload());
++			this.renderEngine.obtainImageData(entity1.cloakUrl, (IImageBuffer)null);
+ 		}
+ 
+ 	}

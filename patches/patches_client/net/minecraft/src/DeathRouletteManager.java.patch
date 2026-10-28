@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/net/minecraft/src/DeathRouletteManager.java
-@@ -1,0 +1,178 @@
+@@ -1,0 +1,195 @@
 +package net.minecraft.src;
 +
 +import java.io.ByteArrayInputStream;
@@ -22,6 +22,22 @@
 +
 +	public static boolean isTickFrozen() {
 +		return tickFrozen;
++	}
++
++	public static void resetOnWorldUnload() {
++		tickFrozen = false;
++		pendingEventId = -1;
++		needRegrabMouse = false;
++		ClientEvents.stopAllClientTimers();
++		VoiceChatManager.resetOnWorldUnload();
++		try {
++			SwingUtilities.invokeLater(new Runnable() {
++				public void run() {
++					DeathRouletteGui.closeActiveWindow();
++				}
++			});
++		} catch (Throwable ignored) {
++		}
 +	}
 +
 +	public static void onClientTick(Minecraft mc) {
@@ -57,6 +73,7 @@
 +		}
 +
 +		ClientEvents.onClientTick(mc);
++		VoiceChatManager.onClientTick(mc);
 +	}
 +
 +	public static void handleServerPacket(final Minecraft mc, Packet250CustomPayload packet) {

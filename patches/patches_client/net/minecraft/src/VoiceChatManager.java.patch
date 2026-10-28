@@ -1,0 +1,800 @@
+--- /dev/null
++++ b/net/minecraft/src/VoiceChatManager.java
+@@ -1,0 +1,797 @@
++package net.minecraft.src;
++
++import java.io.ByteArrayInputStream;
++import java.io.ByteArrayOutputStream;
++import java.io.DataInputStream;
++import java.io.DataOutputStream;
++import java.io.File;
++import java.io.FileInputStream;
++import java.io.FileOutputStream;
++import java.io.IOException;
++import java.util.ArrayList;
++import java.util.Collections;
++import java.util.HashMap;
++import java.util.Iterator;
++import java.util.List;
++import java.util.Map;
++import java.util.Properties;
++import java.util.concurrent.LinkedBlockingQueue;
++import java.util.concurrent.TimeUnit;
++import javax.sound.sampled.AudioFormat;
++import javax.sound.sampled.AudioSystem;
++import javax.sound.sampled.DataLine;
++import javax.sound.sampled.Line;
++import javax.sound.sampled.Mixer;
++import javax.sound.sampled.SourceDataLine;
++import javax.sound.sampled.TargetDataLine;
++import net.minecraft.client.Minecraft;
++import org.lwjgl.input.Keyboard;
++import org.lwjgl.opengl.GL11;
++
++public class VoiceChatManager {
++	public static final String CHANNEL = "DRE|Voice";
++	public static final int SAMPLE_RATE = 16000;
++	public static final int FRAME_SAMPLES = 640; // 40ms at 16kHz
++	public static final int FRAME_BYTES = FRAME_SAMPLES * 2; // 1280 bytes (16-bit mono)
++
++	// Configurable Settings
++	public static volatile boolean globalMode = false; // false = Proximity, true = Global
++	public static volatile boolean pushToTalk = false; // false = VAD (Auto), true = Push-To-Talk
++	public static volatile boolean muted = false;      // M key quick toggle
++	public static volatile int pttKey = Keyboard.KEY_C;
++	public static volatile float maxProximityDistance = 48.0F;
++	public static volatile float micGain = 1.0F;       // 0.2 ~ 3.0
++	public static volatile float speakerVolume = 1.0F; // 0.0 ~ 2.0
++	public static volatile int vadThreshold = 450;     // 100 ~ 2500 (RMS amplitude out of 32767)
++	public static volatile String selectedMicName = "";
++	public static volatile boolean loopbackTest = false;
++
++	// Live Runtime State
++	private static volatile boolean initialized = false;
++	private static volatile boolean running = false;
++	private static volatile boolean reopenMicRequested = false;
++	private static volatile boolean pttKeyDown = false;
++	private static volatile int currentMicRms = 0;
++	private static volatile long lastLocalSpeakTime = 0L;
++	private static volatile long muteToastTime = 0L;
++
++	private static final Map speakerStreams = Collections.synchronizedMap(new HashMap());
++	private static final Map remoteSpeakerStates = Collections.synchronizedMap(new HashMap());
++
++	private static class RemoteSpeakerState {
++		final String username;
++		volatile long lastPacketTime;
++		volatile boolean isGlobal;
++		volatile float lastDistance;
++
++		RemoteSpeakerState(String username) {
++			this.username = username;
++		}
++	}
++
++	private static final int[] IMA_INDEX_TABLE = new int[]{
++		-1, -1, -1, -1, 2, 4, 6, 8,
++		-1, -1, -1, -1, 2, 4, 6, 8
++	};
++
++	private static final int[] IMA_STEP_TABLE = new int[]{
++		7, 8, 9, 10, 11, 12, 13, 14, 16, 17,
++		19, 21, 23, 25, 28, 31, 34, 37, 41, 45,
++		50, 55, 60, 66, 73, 80, 88, 97, 107, 118,
++		130, 143, 157, 173, 190, 209, 230, 253, 279, 307,
++		337, 371, 408, 449, 494, 544, 598, 658, 724, 796,
++		876, 963, 1060, 1166, 1282, 1411, 1552, 1707, 1878, 2066,
++		2272, 2499, 2749, 3024, 3327, 3660, 4026, 4428, 4871, 5358,
++		5894, 6484, 7132, 7845, 8630, 9493, 10442, 11487, 12635, 13899,
++		15289, 16818, 18500, 20350, 22385, 24623, 27086, 29794, 32767
++	};
++
++	public static synchronized void init() {
++		if(initialized) {
++			return;
++		}
++		initialized = true;
++		loadConfig();
++		running = true;
++		Thread captureThread = new Thread(new Runnable() {
++			public void run() {
++				captureLoop();
++			}
++		}, "DRE-VoiceCapture");
++		captureThread.setDaemon(true);
++		captureThread.start();
++	}
++
++	public static void shutdown() {
++		running = false;
++		loopbackTest = false;
++		stopAllSpeakers();
++	}
++
++	public static void resetOnWorldUnload() {
++		loopbackTest = false;
++		remoteSpeakerStates.clear();
++		stopAllSpeakers();
++	}
++
++	public static void requestMicReopen() {
++		reopenMicRequested = true;
++	}
++
++	public static int getCurrentMicRms() {
++		return currentMicRms;
++	}
++
++	public static boolean isLocalSpeaking() {
++		return System.currentTimeMillis() - lastLocalSpeakTime < 250L;
++	}
++
++	public static boolean isPlayerSpeaking(String username) {
++		if(username == null) {
++			return false;
++		}
++		Minecraft mc = Minecraft.getMinecraft();
++		if(mc != null && mc.thePlayer != null && username.equals(mc.thePlayer.username)) {
++			return isLocalSpeaking();
++		}
++		RemoteSpeakerState state = (RemoteSpeakerState)remoteSpeakerStates.get(username);
++		return state != null && (System.currentTimeMillis() - state.lastPacketTime < 300L);
++	}
++
++	public static void onKeyPressInGame(Minecraft mc, int keyCode) {
++		if(mc == null || mc.currentScreen != null) {
++			return;
++		}
++		init();
++		if(keyCode == Keyboard.KEY_V) {
++			mc.displayGuiScreen(new GuiVoiceChatSettings(null));
++		} else if(keyCode == Keyboard.KEY_M) {
++			muted = !muted;
++			muteToastTime = System.currentTimeMillis();
++			saveConfig();
++			if(mc.sndManager != null) {
++				mc.sndManager.playSoundFX("random.click", 0.6F, muted ? 0.7F : 1.2F);
++			}
++		}
++	}
++
++	public static void onClientTick(Minecraft mc) {
++		init();
++		if(mc != null && mc.theWorld != null && mc.thePlayer != null && mc.currentScreen == null && !DeathRouletteManager.isTickFrozen()) {
++			pttKeyDown = pttKey > 0 && Keyboard.isKeyDown(pttKey);
++		} else {
++			pttKeyDown = false;
++		}
++	}
++
++	public static List getAvailableMicNames() {
++		List list = new ArrayList();
++		list.add(""); // "" = Default System Microphone
++		try {
++			AudioFormat format = new AudioFormat((float)SAMPLE_RATE, 16, 1, true, false);
++			DataLine.Info info = new DataLine.Info(TargetDataLine.class, format);
++			Mixer.Info[] mixers = AudioSystem.getMixerInfo();
++			if(mixers != null) {
++				for(int i = 0; i < mixers.length; ++i) {
++					try {
++						Mixer m = AudioSystem.getMixer(mixers[i]);
++						if(m.isLineSupported(info)) {
++							String name = mixers[i].getName();
++							if(name != null && name.length() > 0 && !list.contains(name)) {
++								list.add(name);
++							}
++						}
++					} catch (Throwable ignored) {
++					}
++				}
++			}
++		} catch (Throwable ignored) {
++		}
++		return list;
++	}
++
++	private static TargetDataLine openSelectedMicLine(AudioFormat format) {
++		DataLine.Info info = new DataLine.Info(TargetDataLine.class, format);
++		String wanted = selectedMicName;
++		if(wanted != null && wanted.length() > 0) {
++			try {
++				Mixer.Info[] mixers = AudioSystem.getMixerInfo();
++				if(mixers != null) {
++					for(int i = 0; i < mixers.length; ++i) {
++						if(wanted.equals(mixers[i].getName())) {
++							Mixer m = AudioSystem.getMixer(mixers[i]);
++							if(m.isLineSupported(info)) {
++								TargetDataLine line = (TargetDataLine)m.getLine(info);
++								line.open(format, FRAME_BYTES * 4);
++								line.start();
++								return line;
++							}
++						}
++					}
++				}
++			} catch (Throwable ignored) {
++			}
++		}
++		try {
++			if(AudioSystem.isLineSupported(info)) {
++				TargetDataLine line = (TargetDataLine)AudioSystem.getLine(info);
++				line.open(format, FRAME_BYTES * 4);
++				line.start();
++				return line;
++			}
++		} catch (Throwable ignored) {
++		}
++		return null;
++	}
++
++	private static void captureLoop() {
++		AudioFormat captureFormat = new AudioFormat((float)SAMPLE_RATE, 16, 1, true, false);
++		TargetDataLine micLine = null;
++		byte[] rawBuf = new byte[FRAME_BYTES];
++		short[] pcmBuf = new short[FRAME_SAMPLES];
++		int hangoverFrames = 0;
++
++		while(running) {
++			try {
++				Minecraft mc = Minecraft.getMinecraft();
++				boolean needCapture = loopbackTest || (mc != null && (mc.theWorld != null || mc.currentScreen instanceof GuiVoiceChatSettings));
++				if(!needCapture) {
++					if(micLine != null) {
++						try {
++							micLine.stop();
++							micLine.close();
++						} catch (Throwable ignored) {
++						}
++						micLine = null;
++					}
++					currentMicRms = 0;
++					Thread.sleep(100L);
++					continue;
++				}
++
++				if(reopenMicRequested && micLine != null) {
++					reopenMicRequested = false;
++					try {
++						micLine.stop();
++						micLine.close();
++					} catch (Throwable ignored) {
++					}
++					micLine = null;
++				}
++
++				if(micLine == null) {
++					reopenMicRequested = false;
++					micLine = openSelectedMicLine(captureFormat);
++					if(micLine == null) {
++						currentMicRms = 0;
++						Thread.sleep(500L);
++						continue;
++					}
++				}
++
++				int offset = 0;
++				while(offset < FRAME_BYTES && running && !reopenMicRequested) {
++					int r = micLine.read(rawBuf, offset, FRAME_BYTES - offset);
++					if(r <= 0) {
++						break;
++					}
++					offset += r;
++				}
++				if(offset < FRAME_BYTES) {
++					continue;
++				}
++
++				float gain = micGain;
++				long sumSq = 0L;
++				for(int i = 0; i < FRAME_SAMPLES; ++i) {
++					int lo = rawBuf[i * 2] & 255;
++					int hi = rawBuf[i * 2 + 1];
++					short sample = (short)((hi << 8) | lo);
++					int amplified = Math.round((float)sample * gain);
++					if(amplified > 32767) {
++						amplified = 32767;
++					} else if(amplified < -32768) {
++						amplified = -32768;
++					}
++					pcmBuf[i] = (short)amplified;
++					sumSq += (long)amplified * (long)amplified;
++				}
++
++				int rms = (int)Math.sqrt((double)sumSq / (double)FRAME_SAMPLES);
++				currentMicRms = rms;
++
++				if(loopbackTest) {
++					lastLocalSpeakTime = System.currentTimeMillis();
++					playStereoPcm("__LOOPBACK__", pcmBuf, speakerVolume, speakerVolume);
++					continue;
++				}
++
++				if(muted || mc == null || mc.theWorld == null || mc.thePlayer == null || mc.getNetHandler() == null) {
++					hangoverFrames = 0;
++					continue;
++				}
++
++				boolean shouldSend = false;
++				if(pushToTalk) {
++					shouldSend = pttKeyDown;
++				} else {
++					if(rms >= vadThreshold) {
++						shouldSend = true;
++						hangoverFrames = 8; // ~320ms tail so word endings aren't clipped
++					} else if(hangoverFrames > 0) {
++						--hangoverFrames;
++						shouldSend = true;
++					}
++				}
++
++				if(shouldSend) {
++					lastLocalSpeakTime = System.currentTimeMillis();
++					byte[] adpcm = encodeAdpcm(pcmBuf);
++					sendVoiceFrameToServer(mc, adpcm, globalMode, maxProximityDistance);
++				}
++			} catch (Throwable t) {
++				try {
++					Thread.sleep(100L);
++				} catch (InterruptedException ie) {
++					break;
++				}
++			}
++		}
++
++		if(micLine != null) {
++			try {
++				micLine.stop();
++				micLine.close();
++			} catch (Throwable ignored) {
++			}
++		}
++	}
++
++	private static void sendVoiceFrameToServer(Minecraft mc, byte[] adpcmData, boolean isGlobal, float maxDist) {
++		if(mc == null || mc.getNetHandler() == null || adpcmData == null) {
++			return;
++		}
++		try {
++			ByteArrayOutputStream bos = new ByteArrayOutputStream(adpcmData.length + 12);
++			DataOutputStream out = new DataOutputStream(bos);
++			out.writeByte(VoiceChatServerManager.C2S_AUDIO_FRAME);
++			out.writeBoolean(isGlobal);
++			out.writeFloat(maxDist);
++			out.writeShort(adpcmData.length);
++			out.write(adpcmData);
++			mc.getNetHandler().addToSendQueue(new Packet250CustomPayload(CHANNEL, bos.toByteArray()));
++		} catch (IOException ignored) {
++		}
++	}
++
++	public static void handleServerPacket(Minecraft mc, Packet250CustomPayload packet) {
++		if(mc == null || mc.theWorld == null || mc.thePlayer == null || packet == null || packet.data == null || packet.data.length == 0) {
++			return;
++		}
++		init();
++		try {
++			DataInputStream in = new DataInputStream(new ByteArrayInputStream(packet.data));
++			byte type = in.readByte();
++			if(type == VoiceChatServerManager.S2C_AUDIO_FRAME) {
++				String speakerName = in.readUTF();
++				int dimension = in.readInt();
++				float sx = in.readFloat();
++				float sy = in.readFloat();
++				float sz = in.readFloat();
++				boolean isGlobal = in.readBoolean();
++				float maxDist = in.readFloat();
++				int adpcmLen = in.readUnsignedShort();
++				if(adpcmLen <= 0 || adpcmLen > 4096 || in.available() < adpcmLen) {
++					return;
++				}
++				byte[] adpcmData = new byte[adpcmLen];
++				in.readFully(adpcmData);
++
++				// Check if we can find the live EntityPlayer in the client world for smooth position tracking
++				EntityPlayer speakerEntity = mc.theWorld.getPlayerEntityByName(speakerName);
++				if(speakerEntity != null) {
++					sx = (float)speakerEntity.posX;
++					sy = (float)speakerEntity.posY;
++					sz = (float)speakerEntity.posZ;
++				}
++
++				float leftGain = speakerVolume;
++				float rightGain = speakerVolume;
++				float dist = 0.0F;
++
++				if(!isGlobal) {
++					if(mc.thePlayer.bK != dimension) {
++						return;
++					}
++					double dx = (double)sx - mc.thePlayer.posX;
++					double dy = (double)sy - mc.thePlayer.posY;
++					double dz = (double)sz - mc.thePlayer.posZ;
++					dist = (float)Math.sqrt(dx * dx + dy * dy + dz * dz);
++					if(maxDist <= 1.0F) {
++						maxDist = 48.0F;
++					}
++					if(dist >= maxDist) {
++						return;
++					}
++
++					float norm = 1.0F - (dist / maxDist);
++					float atten = norm * norm;
++					float baseGain = speakerVolume * atten;
++
++					// Compute stereo pan based on listener yaw vs vector to speaker
++					if(dist > 0.5F) {
++						double angleToSpeaker = Math.atan2(dz, dx) - Math.PI * 0.5D;
++						double listenerYawRad = Math.toRadians((double)mc.thePlayer.rotationYaw);
++						double relAngle = angleToSpeaker - listenerYawRad;
++						float pan = (float)Math.sin(relAngle); // -1 = left, +1 = right
++						leftGain = baseGain * Math.max(0.15F, 1.0F - Math.max(0.0F, pan) * 0.75F);
++						rightGain = baseGain * Math.max(0.15F, 1.0F + Math.min(0.0F, pan) * 0.75F);
++					} else {
++						leftGain = baseGain;
++						rightGain = baseGain;
++					}
++				}
++
++				RemoteSpeakerState state = (RemoteSpeakerState)remoteSpeakerStates.get(speakerName);
++				if(state == null) {
++					state = new RemoteSpeakerState(speakerName);
++					remoteSpeakerStates.put(speakerName, state);
++				}
++				state.lastPacketTime = System.currentTimeMillis();
++				state.isGlobal = isGlobal;
++				state.lastDistance = dist;
++
++				if(leftGain <= 0.001F && rightGain <= 0.001F) {
++					return;
++				}
++
++				short[] pcm = decodeAdpcm(adpcmData, FRAME_SAMPLES);
++				playStereoPcm(speakerName, pcm, leftGain, rightGain);
++			}
++		} catch (IOException ignored) {
++		}
++	}
++
++	private static void playStereoPcm(String channelKey, short[] monoPcm, float leftGain, float rightGain) {
++		byte[] stereoBytes = new byte[monoPcm.length * 4];
++		for(int i = 0; i < monoPcm.length; ++i) {
++			int s = monoPcm[i];
++			int l = Math.round((float)s * leftGain);
++			int r = Math.round((float)s * rightGain);
++			if(l > 32767) l = 32767;
++			else if(l < -32768) l = -32768;
++			if(r > 32767) r = 32767;
++			else if(r < -32768) r = -32768;
++
++			int idx = i * 4;
++			stereoBytes[idx] = (byte)(l & 255);
++			stereoBytes[idx + 1] = (byte)((l >> 8) & 255);
++			stereoBytes[idx + 2] = (byte)(r & 255);
++			stereoBytes[idx + 3] = (byte)((r >> 8) & 255);
++		}
++
++		SpeakerStream stream;
++		synchronized(speakerStreams) {
++			stream = (SpeakerStream)speakerStreams.get(channelKey);
++			if(stream == null || !stream.alive) {
++				stream = new SpeakerStream(channelKey);
++				speakerStreams.put(channelKey, stream);
++			}
++		}
++		stream.enqueue(stereoBytes);
++	}
++
++	private static void stopAllSpeakers() {
++		synchronized(speakerStreams) {
++			Iterator it = speakerStreams.values().iterator();
++			while(it.hasNext()) {
++				SpeakerStream ss = (SpeakerStream)it.next();
++				ss.close();
++			}
++			speakerStreams.clear();
++		}
++	}
++
++	private static class SpeakerStream implements Runnable {
++		final String key;
++		final LinkedBlockingQueue queue = new LinkedBlockingQueue(12);
++		volatile boolean alive = true;
++
++		SpeakerStream(String key) {
++			this.key = key;
++			Thread t = new Thread(this, "DRE-VoiceSpeaker-" + key);
++			t.setDaemon(true);
++			t.start();
++		}
++
++		void enqueue(byte[] stereoBytes) {
++			if(!this.alive) {
++				return;
++			}
++			if(!this.queue.offer(stereoBytes)) {
++				this.queue.poll();
++				this.queue.offer(stereoBytes);
++			}
++		}
++
++		void close() {
++			this.alive = false;
++			this.queue.clear();
++		}
++
++		public void run() {
++			SourceDataLine line = null;
++			try {
++				AudioFormat stereoFormat = new AudioFormat((float)SAMPLE_RATE, 16, 2, true, false);
++				DataLine.Info info = new DataLine.Info(SourceDataLine.class, stereoFormat);
++				line = (SourceDataLine)AudioSystem.getLine(info);
++				line.open(stereoFormat, FRAME_SAMPLES * 4 * 4);
++				line.start();
++
++				while(this.alive && running) {
++					byte[] buf = (byte[])this.queue.poll(3000L, TimeUnit.MILLISECONDS);
++					if(buf == null) {
++						break;
++					}
++					line.write(buf, 0, buf.length);
++				}
++			} catch (Throwable ignored) {
++			} finally {
++				this.alive = false;
++				if(line != null) {
++					try {
++						line.stop();
++						line.close();
++					} catch (Throwable ignored) {
++					}
++				}
++			}
++		}
++	}
++
++	// =====================================================================
++	// IMA ADPCM 4-bit Codec (16-bit PCM <-> 4-bit ADPCM)
++	// =====================================================================
++
++	public static byte[] encodeAdpcm(short[] pcm) {
++		int len = pcm.length;
++		byte[] out = new byte[3 + (len + 1) / 2];
++		int predictor = pcm[0];
++		int stepIndex = 0;
++
++		out[0] = (byte)(predictor & 255);
++		out[1] = (byte)((predictor >> 8) & 255);
++		out[2] = (byte)stepIndex;
++
++		int outIdx = 3;
++		int highNibble = 0;
++		boolean isHigh = false;
++
++		for(int i = 0; i < len; ++i) {
++			int step = IMA_STEP_TABLE[stepIndex];
++			int diff = pcm[i] - predictor;
++			int sign = 0;
++			if(diff < 0) {
++				sign = 8;
++				diff = -diff;
++			}
++			int delta = 0;
++			int vpdiff = (step >> 3);
++			if(diff >= step) {
++				delta |= 4;
++				diff -= step;
++				vpdiff += step;
++			}
++			step >>= 1;
++			if(diff >= step) {
++				delta |= 2;
++				diff -= step;
++				vpdiff += step;
++			}
++			step >>= 1;
++			if(diff >= step) {
++				delta |= 1;
++				vpdiff += step;
++			}
++
++			if(sign != 0) {
++				predictor -= vpdiff;
++			} else {
++				predictor += vpdiff;
++			}
++			if(predictor > 32767) predictor = 32767;
++			else if(predictor < -32768) predictor = -32768;
++
++			delta |= sign;
++			stepIndex += IMA_INDEX_TABLE[delta];
++			if(stepIndex < 0) stepIndex = 0;
++			else if(stepIndex > 88) stepIndex = 88;
++
++			if(!isHigh) {
++				highNibble = (delta & 15);
++				isHigh = true;
++			} else {
++				out[outIdx++] = (byte)(highNibble | ((delta & 15) << 4));
++				isHigh = false;
++			}
++		}
++		if(isHigh) {
++			out[outIdx] = (byte)highNibble;
++		}
++		return out;
++	}
++
++	public static short[] decodeAdpcm(byte[] adpcm, int numSamples) {
++		short[] pcm = new short[numSamples];
++		if(adpcm == null || adpcm.length < 3) {
++			return pcm;
++		}
++		int predictor = (short)((adpcm[0] & 255) | (adpcm[1] << 8));
++		int stepIndex = adpcm[2] & 255;
++		if(stepIndex > 88) {
++			stepIndex = 88;
++		}
++
++		int inIdx = 3;
++		boolean isHigh = false;
++		int curByte = 0;
++
++		for(int i = 0; i < numSamples; ++i) {
++			int delta;
++			if(!isHigh) {
++				if(inIdx >= adpcm.length) {
++					break;
++				}
++				curByte = adpcm[inIdx++] & 255;
++				delta = curByte & 15;
++				isHigh = true;
++			} else {
++				delta = (curByte >> 4) & 15;
++				isHigh = false;
++			}
++
++			int step = IMA_STEP_TABLE[stepIndex];
++			int vpdiff = step >> 3;
++			if((delta & 4) != 0) vpdiff += step;
++			if((delta & 2) != 0) vpdiff += (step >> 1);
++			if((delta & 1) != 0) vpdiff += (step >> 2);
++
++			if((delta & 8) != 0) {
++				predictor -= vpdiff;
++			} else {
++				predictor += vpdiff;
++			}
++			if(predictor > 32767) predictor = 32767;
++			else if(predictor < -32768) predictor = -32768;
++
++			pcm[i] = (short)predictor;
++
++			stepIndex += IMA_INDEX_TABLE[delta];
++			if(stepIndex < 0) stepIndex = 0;
++			else if(stepIndex > 88) stepIndex = 88;
++		}
++		return pcm;
++	}
++
++	// =====================================================================
++	// HUD Overlay Rendering (Called from GuiIngame)
++	// =====================================================================
++
++	public static void renderHud(Minecraft mc, int scaledWidth, int scaledHeight) {
++		if(mc == null || mc.fontRenderer == null || mc.gameSettings.hideGUI) {
++			return;
++		}
++		long now = System.currentTimeMillis();
++		boolean localTalking = (now - lastLocalSpeakTime < 250L);
++		boolean showMuteToast = (now - muteToastTime < 2500L);
++
++		int baseX = 6;
++		int baseY = scaledHeight - 18;
++
++		// 1. Draw remote speaking players above the local mic indicator
++		int remoteY = baseY - 14;
++		synchronized(remoteSpeakerStates) {
++			Iterator it = remoteSpeakerStates.values().iterator();
++			while(it.hasNext()) {
++				RemoteSpeakerState st = (RemoteSpeakerState)it.next();
++				if(now - st.lastPacketTime < 350L) {
++					String modeLabel = st.isGlobal ? "GLOBAL" : ((int)Math.round(st.lastDistance) + "m");
++					String line = "\u00A7a[VC] \u00A7f" + st.username + " \u00A77(" + modeLabel + ")";
++					int w = mc.fontRenderer.getStringWidth(line) + 6;
++					Gui.drawRect(baseX, remoteY - 2, baseX + w, remoteY + 10, 0x90000000);
++					mc.fontRenderer.a(line, baseX + 3, remoteY, 0xFFFFFF);
++					remoteY -= 13;
++				}
++			}
++		}
++
++		// 2. Draw local mic status when speaking, muted, or recently toggled mute
++		if(muted) {
++			String txt = showMuteToast ? "\u00A7c[MIC] Muted (Press M to Unmute)" : "\u00A7c[MIC: OFF]";
++			int w = mc.fontRenderer.getStringWidth(txt) + 6;
++			Gui.drawRect(baseX, baseY - 2, baseX + w, baseY + 10, 0x90220000);
++			mc.fontRenderer.a(txt, baseX + 3, baseY, 0xFF5555);
++		} else if(localTalking) {
++			String modeStr = globalMode ? "GLOBAL" : "PROX";
++			String txt = "\u00A7a[MIC: " + modeStr + "]";
++			int txtW = mc.fontRenderer.getStringWidth(txt);
++			int barW = 28;
++			Gui.drawRect(baseX, baseY - 2, baseX + txtW + barW + 10, baseY + 10, 0x90002200);
++			mc.fontRenderer.a(txt, baseX + 3, baseY, 0x55FF55);
++			int bx = baseX + txtW + 6;
++			int by = baseY + 2;
++			Gui.drawRect(bx, by, bx + barW, by + 5, 0xFF222222);
++			int fill = Math.min(barW, (int)((long)currentMicRms * (long)barW / 2500L));
++			if(fill > 0) {
++				Gui.drawRect(bx, by, bx + fill, by + 5, 0xFF33EE55);
++			}
++		} else if(showMuteToast) {
++			String txt = "\u00A7a[MIC] Unmuted (V: Voice Settings)";
++			int w = mc.fontRenderer.getStringWidth(txt) + 6;
++			Gui.drawRect(baseX, baseY - 2, baseX + w, baseY + 10, 0x90002200);
++			mc.fontRenderer.a(txt, baseX + 3, baseY, 0x55FF55);
++		}
++		GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
++	}
++
++	// =====================================================================
++	// Config Persistence
++	// =====================================================================
++
++	public static void loadConfig() {
++		File f = new File("voicechat.properties");
++		if(!f.isFile()) {
++			return;
++		}
++		FileInputStream fis = null;
++		try {
++			Properties props = new Properties();
++			fis = new FileInputStream(f);
++			props.load(fis);
++			globalMode = Boolean.parseBoolean(props.getProperty("globalMode", "false"));
++			pushToTalk = Boolean.parseBoolean(props.getProperty("pushToTalk", "false"));
++			muted = Boolean.parseBoolean(props.getProperty("muted", "false"));
++			pttKey = Integer.parseInt(props.getProperty("pttKey", String.valueOf(Keyboard.KEY_C)));
++			maxProximityDistance = Float.parseFloat(props.getProperty("maxProximityDistance", "48.0"));
++			micGain = Float.parseFloat(props.getProperty("micGain", "1.0"));
++			speakerVolume = Float.parseFloat(props.getProperty("speakerVolume", "1.0"));
++			vadThreshold = Integer.parseInt(props.getProperty("vadThreshold", "450"));
++			selectedMicName = props.getProperty("selectedMicName", "");
++		} catch (Throwable ignored) {
++		} finally {
++			if(fis != null) {
++				try {
++					fis.close();
++				} catch (IOException ignored) {
++				}
++			}
++		}
++	}
++
++	public static void saveConfig() {
++		File f = new File("voicechat.properties");
++		FileOutputStream fos = null;
++		try {
++			Properties props = new Properties();
++			props.setProperty("globalMode", String.valueOf(globalMode));
++			props.setProperty("pushToTalk", String.valueOf(pushToTalk));
++			props.setProperty("muted", String.valueOf(muted));
++			props.setProperty("pttKey", String.valueOf(pttKey));
++			props.setProperty("maxProximityDistance", String.valueOf(maxProximityDistance));
++			props.setProperty("micGain", String.valueOf(micGain));
++			props.setProperty("speakerVolume", String.valueOf(speakerVolume));
++			props.setProperty("vadThreshold", String.valueOf(vadThreshold));
++			props.setProperty("selectedMicName", selectedMicName != null ? selectedMicName : "");
++			fos = new FileOutputStream(f);
++			props.store(fos, "DeathRouletteEdition Voice Chat Settings");
++		} catch (Throwable ignored) {
++		} finally {
++			if(fos != null) {
++				try {
++					fos.close();
++				} catch (IOException ignored) {
++				}
++			}
++		}
++	}
++}

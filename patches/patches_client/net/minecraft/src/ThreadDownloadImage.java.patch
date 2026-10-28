@@ -1,0 +1,241 @@
+--- a/net/minecraft/src/ThreadDownloadImage.java
++++ b/net/minecraft/src/ThreadDownloadImage.java
+@@ -1,5 +1,9 @@
+ package net.minecraft.src;
+ 
++import java.awt.image.BufferedImage;
++import java.io.BufferedReader;
++import java.io.File;
++import java.io.InputStreamReader;
+ import java.net.HttpURLConnection;
+ import java.net.URL;
+ import javax.imageio.ImageIO;
+@@ -17,27 +21,212 @@
+ 
+ 	public void run() {
+ 		HttpURLConnection httpURLConnection1 = null;
++		BufferedImage img = null;
+ 
+ 		try {
+-			URL uRL2 = new URL(this.location);
+-			httpURLConnection1 = (HttpURLConnection)uRL2.openConnection();
+-			httpURLConnection1.setDoInput(true);
+-			httpURLConnection1.setDoOutput(false);
+-			httpURLConnection1.connect();
+-			if(httpURLConnection1.getResponseCode() / 100 == 4) {
+-				return;
+-			}
+-
+-			if(this.buffer == null) {
+-				this.imageData.image = ImageIO.read(httpURLConnection1.getInputStream());
+-			} else {
+-				this.imageData.image = this.buffer.parseUserSkin(ImageIO.read(httpURLConnection1.getInputStream()));
++			String username = extractSkinUsername(this.location);
++			if(username != null) {
++				File localSkin1 = new File("skins/" + username + ".png");
++				if(!localSkin1.isFile()) {
++					localSkin1 = new File("skins/skin/" + username + ".png");
++				}
++				if(localSkin1.isFile() && localSkin1.canRead()) {
++					try {
++						img = ImageIO.read(localSkin1);
++					} catch (Throwable ignored) {
++					}
++				}
++			}
++
++			if(img == null) {
++				try {
++					URL uRL2 = new URL(this.location);
++					httpURLConnection1 = (HttpURLConnection)uRL2.openConnection();
++					httpURLConnection1.setDoInput(true);
++					httpURLConnection1.setDoOutput(false);
++					httpURLConnection1.setConnectTimeout(5000);
++					httpURLConnection1.setReadTimeout(5000);
++					httpURLConnection1.connect();
++					if(httpURLConnection1.getResponseCode() / 100 != 4 && httpURLConnection1.getInputStream() != null) {
++						img = ImageIO.read(httpURLConnection1.getInputStream());
++					}
++				} catch (Throwable ignored) {
++				}
++			}
++
++			if(img == null && username != null) {
++				img = fetchMojangSkin(username);
++			}
++
++			if(img != null) {
++				if(this.buffer == null) {
++					this.imageData.image = img;
++				} else {
++					this.imageData.image = this.buffer.parseUserSkin(img);
++				}
+ 			}
+ 		} catch (Exception exception6) {
+ 			exception6.printStackTrace();
+ 		} finally {
+-			httpURLConnection1.disconnect();
+-		}
+-
++			if(httpURLConnection1 != null) {
++				try {
++					httpURLConnection1.disconnect();
++				} catch (Throwable ignored) {
++				}
++			}
++		}
++	}
++
++	private static String extractSkinUsername(String url) {
++		if(url == null) {
++			return null;
++		}
++		String marker = "/MinecraftSkins/";
++		int idx = url.indexOf(marker);
++		if(idx < 0) {
++			marker = "/skin/";
++			idx = url.indexOf(marker);
++		}
++		if(idx >= 0) {
++			String name = url.substring(idx + marker.length());
++			if(name.endsWith(".png")) {
++				name = name.substring(0, name.length() - 4);
++			}
++			int q = name.indexOf('?');
++			if(q >= 0) {
++				name = name.substring(0, q);
++			}
++			if(name.length() > 0 && !name.startsWith("Player") && !name.equals("DemoUser")) {
++				return name;
++			}
++		}
++		return null;
++	}
++
++	private static BufferedImage fetchMojangSkin(String username) {
++		try {
++			String profileJson = httpGetString("https://api.mojang.com/users/profiles/minecraft/" + username);
++			if(profileJson == null) {
++				return null;
++			}
++			String uuid = extractJsonString(profileJson, "id");
++			if(uuid == null || uuid.length() == 0) {
++				return null;
++			}
++			String sessionJson = httpGetString("https://sessionserver.mojang.com/session/minecraft/profile/" + uuid);
++			if(sessionJson == null) {
++				return null;
++			}
++			String base64Value = extractJsonString(sessionJson, "value");
++			if(base64Value == null || base64Value.length() == 0) {
++				return null;
++			}
++			String decoded = new String(decodeBase64(base64Value), "UTF-8");
++			int skinIdx = decoded.indexOf("\"SKIN\"");
++			if(skinIdx < 0) {
++				return null;
++			}
++			String skinUrl = extractJsonString(decoded.substring(skinIdx), "url");
++			if(skinUrl == null || skinUrl.length() == 0) {
++				return null;
++			}
++			HttpURLConnection conn = (HttpURLConnection)new URL(skinUrl).openConnection();
++			conn.setConnectTimeout(5000);
++			conn.setReadTimeout(5000);
++			conn.setDoInput(true);
++			conn.connect();
++			try {
++				if(conn.getResponseCode() == 200) {
++					return ImageIO.read(conn.getInputStream());
++				}
++			} finally {
++				conn.disconnect();
++			}
++		} catch (Throwable ignored) {
++		}
++		return null;
++	}
++
++	private static String httpGetString(String urlStr) {
++		HttpURLConnection conn = null;
++		try {
++			conn = (HttpURLConnection)new URL(urlStr).openConnection();
++			conn.setConnectTimeout(5000);
++			conn.setReadTimeout(5000);
++			conn.setDoInput(true);
++			if(conn.getResponseCode() != 200) {
++				return null;
++			}
++			BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), "UTF-8"));
++			StringBuilder sb = new StringBuilder();
++			String line;
++			while((line = br.readLine()) != null) {
++				sb.append(line);
++			}
++			br.close();
++			return sb.toString();
++		} catch (Throwable t) {
++			return null;
++		} finally {
++			if(conn != null) {
++				try {
++					conn.disconnect();
++				} catch (Throwable ignored) {
++				}
++			}
++		}
++	}
++
++	private static String extractJsonString(String json, String key) {
++		String pattern = "\"" + key + "\"";
++		int idx = json.indexOf(pattern);
++		if(idx < 0) {
++			return null;
++		}
++		int colon = json.indexOf(':', idx + pattern.length());
++		if(colon < 0) {
++			return null;
++		}
++		int firstQuote = json.indexOf('"', colon + 1);
++		if(firstQuote < 0) {
++			return null;
++		}
++		int secondQuote = json.indexOf('"', firstQuote + 1);
++		if(secondQuote < 0) {
++			return null;
++		}
++		return json.substring(firstQuote + 1, secondQuote);
++	}
++
++	private static byte[] decodeBase64(String s) {
++		String alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
++		int[] table = new int[128];
++		for(int i = 0; i < table.length; ++i) {
++			table[i] = -1;
++		}
++		for(int i = 0; i < alphabet.length(); ++i) {
++			table[alphabet.charAt(i)] = i;
++		}
++		byte[] out = new byte[s.length() * 3 / 4];
++		int outLen = 0;
++		int buf = 0;
++		int bits = 0;
++		for(int i = 0; i < s.length(); ++i) {
++			char c = s.charAt(i);
++			if(c == '=') {
++				break;
++			}
++			if(c < 128 && table[c] >= 0) {
++				buf = (buf << 6) | table[c];
++				bits += 6;
++				if(bits >= 8) {
++					bits -= 8;
++					out[outLen++] = (byte)((buf >> bits) & 0xFF);
++				}
++			}
++		}
++		byte[] res = new byte[outLen];
++		System.arraycopy(out, 0, res, 0, outLen);
++		return res;
+ 	}
+ }

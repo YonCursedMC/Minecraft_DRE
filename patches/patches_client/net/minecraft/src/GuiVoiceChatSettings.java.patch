@@ -1,0 +1,222 @@
+--- /dev/null
++++ b/net/minecraft/src/GuiVoiceChatSettings.java
+@@ -1,0 +1,219 @@
++package net.minecraft.src;
++
++import java.util.List;
++import org.lwjgl.input.Keyboard;
++
++public class GuiVoiceChatSettings extends GuiScreen {
++	private final GuiScreen parentScreen;
++	private boolean waitingForPttKey = false;
++	private List availableMics;
++
++	private GuiButton btnMode;
++	private GuiButton btnDistance;
++	private GuiButton btnActivation;
++	private GuiButton btnMute;
++	private GuiButton btnPttKey;
++	private GuiButton btnMicDevice;
++	private GuiButton btnLoopback;
++
++	public GuiVoiceChatSettings(GuiScreen parent) {
++		this.parentScreen = parent;
++	}
++
++	public void initGui() {
++		VoiceChatManager.init();
++		this.availableMics = VoiceChatManager.getAvailableMicNames();
++		this.controlList.clear();
++
++		int cx = this.width / 2;
++		int top = 34;
++
++		this.btnMode = new GuiButton(1, cx - 155, top, 150, 20, "");
++		this.btnDistance = new GuiButton(2, cx + 5, top, 150, 20, "");
++		this.controlList.add(this.btnMode);
++		this.controlList.add(this.btnDistance);
++
++		top += 24;
++		this.btnActivation = new GuiButton(3, cx - 155, top, 150, 20, "");
++		this.btnPttKey = new GuiButton(4, cx + 5, top, 150, 20, "");
++		this.controlList.add(this.btnActivation);
++		this.controlList.add(this.btnPttKey);
++
++		top += 24;
++		this.btnMute = new GuiButton(5, cx - 155, top, 150, 20, "");
++		this.btnLoopback = new GuiButton(6, cx + 5, top, 150, 20, "");
++		this.controlList.add(this.btnMute);
++		this.controlList.add(this.btnLoopback);
++
++		top += 24;
++		this.btnMicDevice = new GuiButton(7, cx - 155, top, 310, 20, "");
++		this.controlList.add(this.btnMicDevice);
++
++		top += 26;
++		// Mic Gain [-][+] and Speaker Volume [-][+]
++		this.controlList.add(new GuiButton(10, cx - 155, top, 35, 20, "-"));
++		this.controlList.add(new GuiButton(11, cx - 40, top, 35, 20, "+"));
++		this.controlList.add(new GuiButton(12, cx + 5, top, 35, 20, "-"));
++		this.controlList.add(new GuiButton(13, cx + 120, top, 35, 20, "+"));
++
++		top += 24;
++		// VAD Sensitivity Threshold [-][+]
++		this.controlList.add(new GuiButton(14, cx - 155, top, 40, 20, "-"));
++		this.controlList.add(new GuiButton(15, cx + 115, top, 40, 20, "+"));
++
++		this.controlList.add(new GuiButton(100, cx - 100, this.height - 28, 200, 20, "\u5B8C\u4E86 (Done)"));
++		this.updateButtons();
++	}
++
++	private void updateButtons() {
++		this.btnMode.displayString = "\u901A\u8A71\u65B9\u5F0F: " + (VoiceChatManager.globalMode ? "\u00A7b\u5168\u4F53\u901A\u8A71 (Global)" : "\u00A7a\u8FD1\u63A5\u901A\u8A71 (Proximity)");
++		this.btnDistance.displayString = "\u8FD1\u63A5\u8DDD\u96E2: " + (int)VoiceChatManager.maxProximityDistance + "m";
++		this.btnDistance.enabled = !VoiceChatManager.globalMode;
++
++		this.btnActivation.displayString = "\u5165\u529B\u65B9\u5F0F: " + (VoiceChatManager.pushToTalk ? "\u00A7ePush-To-Talk" : "\u00A7a\u5E38\u6642\u901A\u8A71 (\u81EA\u52D5\u691C\u77E5)");
++		if(this.waitingForPttKey) {
++			this.btnPttKey.displayString = "\u00A7e> \u30AD\u30FC\u3092\u62BC\u3057\u3066\u304F\u3060\u3055\u3044 <";
++		} else {
++			this.btnPttKey.displayString = "PTT\u30AD\u30FC: [" + Keyboard.getKeyName(VoiceChatManager.pttKey) + "]";
++		}
++
++		this.btnMute.displayString = "\u30DE\u30A4\u30AF(M): " + (VoiceChatManager.muted ? "\u00A7c\u30DF\u30E5\u30FC\u30C8\u4E2D (OFF)" : "\u00A7a\u901A\u8A71\u53EF\u80FD (ON)");
++		this.btnLoopback.displayString = "\u30DE\u30A4\u30AF\u30C6\u30B9\u30C8: " + (VoiceChatManager.loopbackTest ? "\u00A7aON (\u81EA\u5206\u306E\u58F0\u3092\u518D\u751F)" : "OFF");
++
++		String micLabel = (VoiceChatManager.selectedMicName == null || VoiceChatManager.selectedMicName.length() == 0)
++			? "\u898F\u5B9A\u306E\u30DE\u30A4\u30AF (Default)"
++			: VoiceChatManager.selectedMicName;
++		if(micLabel.length() > 34) {
++			micLabel = micLabel.substring(0, 34) + "...";
++		}
++		this.btnMicDevice.displayString = "\u5165\u529B\u30DE\u30A4\u30AF: " + micLabel;
++	}
++
++	protected void actionPerformed(GuiButton btn) {
++		if(!btn.enabled) {
++			return;
++		}
++		this.waitingForPttKey = false;
++		switch(btn.id) {
++		case 1:
++			VoiceChatManager.globalMode = !VoiceChatManager.globalMode;
++			break;
++		case 2:
++			if(VoiceChatManager.maxProximityDistance < 24.0F) VoiceChatManager.maxProximityDistance = 32.0F;
++			else if(VoiceChatManager.maxProximityDistance < 40.0F) VoiceChatManager.maxProximityDistance = 48.0F;
++			else if(VoiceChatManager.maxProximityDistance < 56.0F) VoiceChatManager.maxProximityDistance = 64.0F;
++			else if(VoiceChatManager.maxProximityDistance < 80.0F) VoiceChatManager.maxProximityDistance = 96.0F;
++			else VoiceChatManager.maxProximityDistance = 16.0F;
++			break;
++		case 3:
++			VoiceChatManager.pushToTalk = !VoiceChatManager.pushToTalk;
++			break;
++		case 4:
++			this.waitingForPttKey = true;
++			break;
++		case 5:
++			VoiceChatManager.muted = !VoiceChatManager.muted;
++			break;
++		case 6:
++			VoiceChatManager.loopbackTest = !VoiceChatManager.loopbackTest;
++			break;
++		case 7:
++			if(this.availableMics != null && this.availableMics.size() > 1) {
++				int idx = this.availableMics.indexOf(VoiceChatManager.selectedMicName);
++				int nextIdx = (idx + 1) % this.availableMics.size();
++				VoiceChatManager.selectedMicName = (String)this.availableMics.get(nextIdx);
++				VoiceChatManager.requestMicReopen();
++			}
++			break;
++		case 10:
++			VoiceChatManager.micGain = Math.max(0.2F, Math.round((VoiceChatManager.micGain - 0.2F) * 10.0F) / 10.0F);
++			break;
++		case 11:
++			VoiceChatManager.micGain = Math.min(3.0F, Math.round((VoiceChatManager.micGain + 0.2F) * 10.0F) / 10.0F);
++			break;
++		case 12:
++			VoiceChatManager.speakerVolume = Math.max(0.0F, Math.round((VoiceChatManager.speakerVolume - 0.1F) * 10.0F) / 10.0F);
++			break;
++		case 13:
++			VoiceChatManager.speakerVolume = Math.min(2.0F, Math.round((VoiceChatManager.speakerVolume + 0.1F) * 10.0F) / 10.0F);
++			break;
++		case 14:
++			VoiceChatManager.vadThreshold = Math.max(50, VoiceChatManager.vadThreshold - 100);
++			break;
++		case 15:
++			VoiceChatManager.vadThreshold = Math.min(2500, VoiceChatManager.vadThreshold + 100);
++			break;
++		case 100:
++			VoiceChatManager.loopbackTest = false;
++			VoiceChatManager.saveConfig();
++			this.mc.displayGuiScreen(this.parentScreen);
++			return;
++		}
++		VoiceChatManager.saveConfig();
++		this.updateButtons();
++	}
++
++	protected void keyTyped(char c, int keyCode) {
++		if(this.waitingForPttKey) {
++			if(keyCode != Keyboard.KEY_ESCAPE) {
++				VoiceChatManager.pttKey = keyCode;
++				VoiceChatManager.saveConfig();
++			}
++			this.waitingForPttKey = false;
++			this.updateButtons();
++			return;
++		}
++		if(keyCode == Keyboard.KEY_ESCAPE || keyCode == Keyboard.KEY_V) {
++			VoiceChatManager.loopbackTest = false;
++			VoiceChatManager.saveConfig();
++			this.mc.displayGuiScreen(this.parentScreen);
++		}
++	}
++
++	public void onGuiClosed() {
++		VoiceChatManager.loopbackTest = false;
++		VoiceChatManager.saveConfig();
++	}
++
++	public void drawScreen(int mouseX, int mouseY, float partialTicks) {
++		this.drawDefaultBackground();
++		int cx = this.width / 2;
++
++		this.drawCenteredString(this.fontRenderer, "\u00A7l\u30DC\u30A4\u30B9\u30C1\u30E3\u30C3\u30C8\u8A2D\u5B9A (Voice Chat Settings)", cx, 14, 0xFFFFFF);
++
++		// Labels between - / + buttons
++		int rowGainY = 34 + 24 * 3 + 26;
++		String gainStr = "\u30DE\u30A4\u30AF\u97F3\u91CF: " + (int)Math.round(VoiceChatManager.micGain * 100.0F) + "%";
++		this.drawCenteredString(this.fontRenderer, gainStr, cx - 80, rowGainY + 6, 0xE0E0E0);
++
++		String spkStr = "\u53D7\u8A71\u97F3\u91CF: " + (int)Math.round(VoiceChatManager.speakerVolume * 100.0F) + "%";
++		this.drawCenteredString(this.fontRenderer, spkStr, cx + 80, rowGainY + 6, 0xE0E0E0);
++
++		int rowVadY = rowGainY + 24;
++		String vadStr = "\u97F3\u58F0\u691C\u77E5\u3057\u304D\u3044\u5024 (\u611F\u5EA6): " + VoiceChatManager.vadThreshold;
++		this.drawCenteredString(this.fontRenderer, vadStr, cx, rowVadY + 6, 0xE0E0E0);
++
++		// Live Microphone Level Meter
++		int meterY = rowVadY + 28;
++		int meterX1 = cx - 155;
++		int meterX2 = cx + 155;
++		int meterW = meterX2 - meterX1;
++		drawRect(meterX1 - 1, meterY - 1, meterX2 + 1, meterY + 15, 0xFF888888);
++		drawRect(meterX1, meterY, meterX2, meterY + 14, 0xFF181818);
++
++		int rms = VoiceChatManager.getCurrentMicRms();
++		int fillW = Math.min(meterW, (int)((long)rms * (long)meterW / 2500L));
++		int barColor = (rms >= VoiceChatManager.vadThreshold) ? 0xFF22DD44 : 0xFFCCAA22;
++		if(fillW > 0) {
++			drawRect(meterX1, meterY, meterX1 + fillW, meterY + 14, barColor);
++		}
++
++		// Threshold marker line
++		int threshX = meterX1 + Math.min(meterW - 2, (int)((long)VoiceChatManager.vadThreshold * (long)meterW / 2500L));
++		drawRect(threshX, meterY - 2, threshX + 2, meterY + 16, 0xFFFF3333);
++
++		this.drawCenteredString(this.fontRenderer, "\u30DE\u30A4\u30AF\u5165\u529B\u30EC\u30D9\u30EB (\u8D64\u7DDA\u4EE5\u4E0A\u3067\u81EA\u52D5\u901A\u8A71)", cx, meterY + 3, 0xFFFFFF);
++
++		super.drawScreen(mouseX, mouseY, partialTicks);
++	}
++}

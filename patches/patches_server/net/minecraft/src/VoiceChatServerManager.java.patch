@@ -1,0 +1,93 @@
+--- /dev/null
++++ b/net/minecraft/src/VoiceChatServerManager.java
+@@ -1,0 +1,90 @@
++package net.minecraft.src;
++
++import java.io.ByteArrayInputStream;
++import java.io.ByteArrayOutputStream;
++import java.io.DataInputStream;
++import java.io.DataOutputStream;
++import java.io.IOException;
++import java.util.List;
++import net.minecraft.server.MinecraftServer;
++
++public class VoiceChatServerManager {
++	public static final String CHANNEL = "DRE|Voice";
++
++	public static final byte C2S_AUDIO_FRAME = 1;
++	public static final byte S2C_AUDIO_FRAME = 2;
++
++	public static void handleClientPacket(MinecraftServer server, EntityPlayerMP sender, Packet250CustomPayload packet) {
++		if(server == null || sender == null || packet == null || packet.data == null || packet.data.length == 0) {
++			return;
++		}
++		if(server.getConfigurationManager() == null) {
++			return;
++		}
++
++		try {
++			DataInputStream in = new DataInputStream(new ByteArrayInputStream(packet.data));
++			byte type = in.readByte();
++			if(type == C2S_AUDIO_FRAME) {
++				boolean globalMode = in.readBoolean();
++				float maxDistance = in.readFloat();
++				if(maxDistance < 4.0F) {
++					maxDistance = 4.0F;
++				} else if(maxDistance > 256.0F) {
++					maxDistance = 256.0F;
++				}
++				int adpcmLen = in.readUnsignedShort();
++				if(adpcmLen <= 0 || adpcmLen > 4096 || in.available() < adpcmLen) {
++					return;
++				}
++				byte[] adpcmData = new byte[adpcmLen];
++				in.readFully(adpcmData);
++
++				ByteArrayOutputStream bos = new ByteArrayOutputStream(adpcmLen + 48);
++				DataOutputStream out = new DataOutputStream(bos);
++				out.writeByte(S2C_AUDIO_FRAME);
++				out.writeUTF(sender.username != null ? sender.username : "Player");
++				out.writeInt(sender.bK);
++				out.writeFloat((float)sender.posX);
++				out.writeFloat((float)sender.posY);
++				out.writeFloat((float)sender.posZ);
++				out.writeBoolean(globalMode);
++				out.writeFloat(maxDistance);
++				out.writeShort(adpcmLen);
++				out.write(adpcmData);
++
++				byte[] payload = bos.toByteArray();
++				List players = server.getConfigurationManager().playerEntityList;
++				if(players == null) {
++					return;
++				}
++
++				double maxDistWithMargin = (double)(maxDistance + 8.0F);
++				double maxDistSq = maxDistWithMargin * maxDistWithMargin;
++
++				for(int i = 0; i < players.size(); ++i) {
++					EntityPlayerMP target = (EntityPlayerMP)players.get(i);
++					if(target == null || target == sender || target.playerNetServerHandler == null) {
++						continue;
++					}
++					if(sender.username != null && sender.username.equals(target.username)) {
++						continue;
++					}
++					if(!globalMode) {
++						if(target.bK != sender.bK) {
++							continue;
++						}
++						double dx = target.posX - sender.posX;
++						double dy = target.posY - sender.posY;
++						double dz = target.posZ - sender.posZ;
++						if(dx * dx + dy * dy + dz * dz > maxDistSq) {
++							continue;
++						}
++					}
++					target.playerNetServerHandler.b(new Packet250CustomPayload(CHANNEL, payload));
++				}
++			}
++		} catch (IOException ignored) {
++		}
++	}
++}
