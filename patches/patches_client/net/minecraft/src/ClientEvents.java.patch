@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/net/minecraft/src/ClientEvents.java
-@@ -1,0 +1,523 @@
+@@ -1,0 +1,526 @@
 +package net.minecraft.src;
 +
 +import java.io.ByteArrayInputStream;
@@ -406,21 +406,22 @@
 +	// or every client tick while a timer is active for eventX!
 +	// =====================================================================
 +
-+	public static void event0(Minecraft mc) {}
-+	public static void event1(Minecraft mc) {
-+		startClientTimerSeconds(1, 10.0);
++	public static void event0(Minecraft mc) {
++		startClientTimerSeconds(0, 5.0D);
 +		Random random = new Random();
-+		if(random.nextBoolean()) {
-+			for(int i = 0; i < mc.displayWidth / 6; ++i) {
-+				String[] text = {"YOU SHOULDON'T BE HERE YOU SHOULDON'T BE HERE YOU SHOULDON'T BE HERE", "DIEDIEDIEDIEDIEDIEDIEDIEDIEDIEDIEDIE", "HE'S HERE HE'S HERE HE'S HERE HE'S HERE HE'S HERE", "GO TO HELL GO TO HELL GO TO HELL GO TO HELL", "STANDING ALONE STANDING ALONE STANDING ALONE", "HE'S HERE HE'S HERE HE'S HERE HE'S HERE HE'S HERE", "SAVE MY SOUL SAVE MY SOUL SAVE MY SOUL", "UNTITLED UNTITLED UNTITLED UNTITLED UNTITLED UNTITLED", "HELLO I'M DIE HELLO I'M DIE HELLO I'M DIE HELLO I'M DIE HELLO I'M DIE", "UNKNOWN UNKNOWN UNKNOWN UNKNOWN UNKNOWN", "I AM YOU MAYBE I AM YOU MAYBE I AM YOU MAYBE I AM YOU MAYBE I AM YOU MAYBE"};
-+				mc.ingameGUI.drawCenteredString(mc.fontRenderer, "\u00A74" + text[random.nextInt(text.length)], random.nextInt(mc.displayWidth), random.nextInt(mc.displayHeight), 0);
-+			}
-+		}else {
-+			String X = "\u00A7xE";
-+			for (int i = 0; i < 64; i++) {
-+				for (int j = 0; j < 48; j++) {
-+					mc.ingameGUI.drawCenteredString(mc.fontRenderer, X, i * 8, j * 8, random.nextInt(16777215));
-+				}
++		WavPlaySound.playsound("/sounds/entity"+random.nextInt(3)+".wav");
++		for(int i = 0; i < mc.displayWidth / 4; ++i) {
++			String[] text = {"YOU SHOULDON'T BE HERE YOU SHOULDON'T BE HERE YOU SHOULDON'T BE HERE", "DIEDIEDIEDIEDIEDIEDIEDIEDIEDIEDIEDIE", "HE'S HERE HE'S HERE HE'S HERE HE'S HERE HE'S HERE", "GO TO HELL GO TO HELL GO TO HELL GO TO HELL", "STANDING ALONE STANDING ALONE STANDING ALONE", "HE'S HERE HE'S HERE HE'S HERE HE'S HERE HE'S HERE", "SAVE MY SOUL SAVE MY SOUL SAVE MY SOUL", "UNTITLED UNTITLED UNTITLED UNTITLED UNTITLED UNTITLED", "HELLO I'M DIE HELLO I'M DIE HELLO I'M DIE HELLO I'M DIE HELLO I'M DIE", "UNKNOWN UNKNOWN UNKNOWN UNKNOWN UNKNOWN", "I AM YOU MAYBE I AM YOU MAYBE I AM YOU MAYBE I AM YOU MAYBE I AM YOU MAYBE"};
++			mc.ingameGUI.drawCenteredString(mc.fontRenderer, "\u00A74" + text[random.nextInt(text.length)], random.nextInt(mc.displayWidth), random.nextInt(mc.displayHeight), 0);
++		}}
++	public static void event1(Minecraft mc) {
++		startClientTimerSeconds(1, 5.0D);
++		Random random = new Random();
++		WavPlaySound.playsound("/sounds/entity"+random.nextInt(3)+".wav");
++		for (int i = 0; i < 64; i++) {
++			for (int j = 0; j < 48; j++) {
++				String X = "\u00A7xE";
++				mc.ingameGUI.drawCenteredString(mc.fontRenderer, X, i * 8, j * 8, random.nextInt(16777215));
 +			}
 +		}
 +	}
@@ -430,13 +431,14 @@
 +	public static void event4(Minecraft mc) {}
 +	public static void event5(Minecraft mc) {}
 +	public static void event6(Minecraft mc) {
-+		mc.displayCrashReport(new CrashReport("LongLongAgo", new Error("LongLongAgo")));
++		throw new RuntimeException("LongLongAgo");
 +	}
 +	public static void event7(Minecraft mc) {
-+		mc.displayCrashReport(new CrashReport("LengthLengthAgo", new Error("LengthLengthAgo")));
++		throw new RuntimeException("LengthLengthAgo");
 +	}
 +	public static void event8(Minecraft mc) {
 +		Random random = new Random();
++		WavPlaySound.playsound("/sounds/error.wav");
 +		for(int i = 0; i < 48; ++i) {
 +			try {
 +				new Thread(()->{
@@ -460,6 +462,7 @@
 +	public static void event13(Minecraft mc) {
 +		Random random = new Random();
 +		startClientTimerSeconds(13, 5.0D);
++		WavPlaySound.playsound("/sounds/NONO.wav");
 +		mc.ingameGUI.renderNONO(random.nextInt(mc.displayWidth), random.nextInt(mc.displayHeight));
 +	}
 +	public static void event14(Minecraft mc) {

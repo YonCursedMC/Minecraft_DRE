@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/net/minecraft/src/EntityZimber.java
-@@ -1,0 +1,129 @@
+@@ -1,0 +1,126 @@
 +package net.minecraft.src;
 +
 +public class EntityZimber extends EntityMob {
@@ -125,8 +125,5 @@
 +	}
 +
 +	public void onUpdate() {
-+		for (int i = 0; i < 2; i++) {
-+			super.onUpdate();
-+		}
 +	}
 +}
