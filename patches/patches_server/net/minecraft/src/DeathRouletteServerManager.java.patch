@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/net/minecraft/src/DeathRouletteServerManager.java
-@@ -1,0 +1,489 @@
+@@ -1,0 +1,518 @@
 +package net.minecraft.src;
 +
 +import java.io.ByteArrayInputStream;
@@ -47,6 +47,7 @@
 +	private static int waitingWaitTicks = 0;
 +
 +	private static int rouletteWinningEvent = 0;
++	private static final Map roulettePlayerEvents = new LinkedHashMap();
 +
 +	private static int amidaCols = 8;
 +	private static int amidaRows = 14;
@@ -135,6 +136,7 @@
 +		activeAnimTicks = 0;
 +		waitingWaitTicks = 0;
 +		amidaPlayerChoices.clear();
++		roulettePlayerEvents.clear();
 +		finishedPlayers.clear();
 +	}
 +
@@ -149,18 +151,40 @@
 +		activeAnimTicks = 0;
 +		waitingWaitTicks = 0;
 +		amidaPlayerChoices.clear();
++		roulettePlayerEvents.clear();
 +		finishedPlayers.clear();
 +
 +		boolean isRoulette = RAND.nextDouble() < (currentSessionIsEscape ? 0.5D : DeathRouletteEvents.ROULETTE_PROBABILITY);
 +		if(isRoulette) {
 +			currentMode = MODE_ROULETTE_RUNNING;
-+			if(currentSessionIsEscape) {
-+				rouletteWinningEvent = RAND.nextInt(5); // 0 = escape (1/5 chance)
-+			} else {
-+				rouletteWinningEvent = DeathRouletteEvents.selectWeightedEvent(DeathRouletteEvents.ROULETTE_WEIGHTS, RAND);
++			double[] availWeights = new double[DeathRouletteEvents.ROULETTE_WEIGHTS.length];
++			System.arraycopy(DeathRouletteEvents.ROULETTE_WEIGHTS, 0, availWeights, 0, availWeights.length);
++
++			for(int i = 0; i < players.size(); ++i) {
++				EntityPlayerMP p = (EntityPlayerMP)players.get(i);
++				int ev;
++				if(currentSessionIsEscape) {
++					ev = RAND.nextInt(5); // 0 = escape (1/5 chance)
++				} else {
++					double sum = 0.0D;
++					for(int w = 0; w < availWeights.length; ++w) {
++						if(availWeights[w] > 0.0D) {
++							sum += availWeights[w];
++						}
++					}
++					if(sum <= 0.0D) {
++						System.arraycopy(DeathRouletteEvents.ROULETTE_WEIGHTS, 0, availWeights, 0, availWeights.length);
++					}
++					ev = DeathRouletteEvents.selectWeightedEvent(availWeights, RAND);
++					if(ev >= 0 && ev < availWeights.length) {
++						availWeights[ev] = 0.0D;
++					}
++				}
++				roulettePlayerEvents.put(p.username, Integer.valueOf(ev));
++				rouletteWinningEvent = ev;
++				long seed = RAND.nextLong();
++				sendStartRoulettePacketToPlayer(p, ev, seed, currentSessionIsEscape);
 +			}
-+			long seed = RAND.nextLong();
-+			sendStartRoulettePacket(server, players, rouletteWinningEvent, seed, currentSessionIsEscape);
 +		} else {
 +			currentMode = MODE_AMIDA_WAITING;
 +			int playerCount = players.size();
@@ -294,7 +318,8 @@
 +			EntityPlayerMP player = (EntityPlayerMP)players.get(i);
 +			int ev = 0;
 +			if(finishedMode == MODE_ROULETTE_RUNNING) {
-+				ev = rouletteWinningEvent;
++				Integer evObj = (Integer)roulettePlayerEvents.get(player.username);
++				ev = evObj != null ? evObj.intValue() : rouletteWinningEvent;
 +			} else if(finishedMode == MODE_AMIDA_TRACING) {
 +				Integer startColObj = (Integer)amidaPlayerChoices.get(player.username);
 +				int startCol = startColObj != null ? startColObj.intValue() : (i % amidaCols);
@@ -315,6 +340,7 @@
 +		}
 +
 +		amidaPlayerChoices.clear();
++		roulettePlayerEvents.clear();
 +		finishedPlayers.clear();
 +	}
 +
@@ -406,7 +432,10 @@
 +		}
 +	}
 +
-+	private static void sendStartRoulettePacket(MinecraftServer server, List players, int winningEvent, long seed, boolean escapeMode) {
++	private static void sendStartRoulettePacketToPlayer(EntityPlayerMP player, int winningEvent, long seed, boolean escapeMode) {
++		if(player == null || player.playerNetServerHandler == null) {
++			return;
++		}
 +		try {
 +			ByteArrayOutputStream bos = new ByteArrayOutputStream();
 +			DataOutputStream out = new DataOutputStream(bos);
@@ -414,7 +443,7 @@
 +			out.writeInt(winningEvent);
 +			out.writeLong(seed);
 +			out.writeBoolean(escapeMode);
-+			sendToPlayers(players, new Packet250CustomPayload(CHANNEL, bos.toByteArray()));
++			player.playerNetServerHandler.b(new Packet250CustomPayload(CHANNEL, bos.toByteArray()));
 +		} catch (IOException e) {
 +			e.printStackTrace();
 +		}

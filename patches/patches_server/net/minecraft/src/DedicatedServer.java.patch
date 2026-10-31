@@ -9,3 +9,12 @@
  		if(Runtime.getRuntime().maxMemory() / 1024L / 1024L < 512L) {
  			a.warning("To start the server with more ram, launch it as \"java -Xmx1024M -Xms1024M -jar minecraft_server.jar\"");
  		}
+@@ -42,7 +42,7 @@
+ 		if(this.isSinglePlayer()) {
+ 			this.setHostname("127.0.0.1");
+ 		} else {
+-			this.setOnlineMode(this.settings.getBooleanProperty("online-mode", true));
++			this.setOnlineMode(this.settings.getBooleanProperty("online-mode", false));
+ 			this.setHostname(this.settings.getProperty("server-ip", ""));
+ 		}
+ 
